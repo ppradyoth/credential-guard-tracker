@@ -153,6 +153,8 @@ def format_timestamp() -> str:
 
 def main():
     """Main entry point."""
+    import sys
+
     with open("manifest.json", "r") as f:
         manifest = json.load(f)
 
@@ -172,27 +174,28 @@ def main():
         pr_repo = manifest["tracking"]["primary_pr"]["repo"]
         pr_number = manifest["tracking"]["primary_pr"]["pr_number"]
 
-        print(f"Fetching PR #{pr_number} from {pr_owner}/{pr_repo}...")
+        sys.stderr.write(f"Fetching PR #{pr_number} from {pr_owner}/{pr_repo}...\n")
         metrics["pr"] = collect_pr_metrics(gh, pr_owner, pr_repo, pr_number)
 
         # Repository metrics
-        print(f"Fetching repo metrics for {pr_owner}/{pr_repo}...")
+        sys.stderr.write(f"Fetching repo metrics for {pr_owner}/{pr_repo}...\n")
         metrics["repo"] = collect_repo_metrics(gh, pr_owner, pr_repo)
 
         # Related issues
-        print(f"Searching for related issues...")
+        sys.stderr.write(f"Searching for related issues...\n")
         metrics["related_issues"] = collect_related_issues(
             gh,
             f"{pr_owner}/{pr_repo}",
             manifest["search_keywords"],
         )
 
-        # Output metrics as JSON
-        print(json.dumps(metrics, indent=2))
+        # Output metrics as JSON to stdout only
+        sys.stdout.write(json.dumps(metrics, indent=2))
+        sys.stdout.write("\n")
         return metrics
 
     except Exception as e:
-        print(f"Error: {e}", file=__import__("sys").stderr)
+        sys.stderr.write(f"Error: {e}\n")
         raise
 
 
