@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Credential Guard Tracker</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="header-title">
+                    <h1>🔐 Credential Guard</h1>
+                    <p class="subtitle">Ecosystem Tracking Dashboard</p>
+                </div>
+                <div class="header-meta">
+                    <div class="last-updated">
+                        <span class="label">Last Updated</span>
+                        <span class="value" id="lastUpdated">—</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Metrics Grid -->
+        <section class="metrics-section">
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-value" id="prState">—</div>
+                    <div class="metric-label">PR Status</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value" id="prComments">—</div>
+                    <div class="metric-label">Comments</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value" id="repoStars">—</div>
+                    <div class="metric-label">Stars</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value" id="relatedIssues">—</div>
+                    <div class="metric-label">Related Issues</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Main Content -->
+        <main class="main">
+            <!-- PR Overview -->
+            <section class="section">
+                <h2 class="section-title">Primary PR</h2>
+                <div class="pr-card" id="prCard">
+                    <div class="loading">Loading PR data...</div>
+                </div>
+            </section>
+
+            <!-- Reports List -->
+            <section class="section">
+                <h2 class="section-title">Daily Reports</h2>
+                <div class="reports-list" id="reportsList">
+                    <div class="loading">Loading reports...</div>
+                </div>
+            </section>
+
+            <!-- Related Issues -->
+            <section class="section">
+                <h2 class="section-title">Related Issues & Activity</h2>
+                <div class="issues-container" id="issuesContainer">
+                    <div class="loading">Loading issues...</div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="footer-content">
+                <p>Automated ecosystem tracking for credential-guard security plugin</p>
+                <div class="footer-links">
+                    <a href="https://github.com/anthropics/claude-code/pull/62099" target="_blank">View PR</a>
+                    <span class="separator">•</span>
+                    <a href="https://github.com/ppradyoth/credential-guard-tracker" target="_blank">Tracker Repo</a>
+                    <span class="separator">•</span>
+                    <a href="https://github.com/anthropics/claude-code/issues/62095" target="_blank">Original Issue</a>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
