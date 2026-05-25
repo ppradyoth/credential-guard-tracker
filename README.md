@@ -196,4 +196,3 @@ MIT — Use freely for your own tracking systems.
 
 - [Big Model Radar](https://github.com/gsscsd/big_model_radar) — Multilingual AI CLI ecosystem tracking
 - [credential-guard](https://github.com/anthropics/claude-code/pull/62099) — The plugin being tracked
-- [Akrivon AI](https://github.com/ppradyoth/akrivon-ai) — Related red-teaming work
