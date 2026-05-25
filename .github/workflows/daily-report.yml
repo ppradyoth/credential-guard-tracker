@@ -31,8 +31,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          python scripts/fetch_metrics.py > /tmp/metrics.json 2>&1
-          cat /tmp/metrics.json
+          python scripts/fetch_metrics.py > /tmp/metrics.json
+          echo "=== Metrics JSON ===" >&2
+          cat /tmp/metrics.json >&2
 
       - name: Generate report
         run: |
