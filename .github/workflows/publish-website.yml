@@ -12,25 +12,43 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      pages: write
-      id-token: write
-
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      contents: write
 
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Pages
-        uses: actions/configure-pages@v4
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
-          path: 'docs'
+          fetch-depth: 0
 
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Verify docs folder exists
+        run: |
+          if [ ! -d "docs" ]; then
+            echo "docs folder not found!"
+            exit 1
+          fi
+          echo "✅ docs folder verified"
+          ls -la docs/
+
+      - name: Create .nojekyll
+        run: touch docs/.nojekyll
+
+      - name: Commit .nojekyll if needed
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          if [ -n "$(git status --porcelain)" ]; then
+            git add docs/.nojekyll
+            git commit -m "chore: add .nojekyll for GitHub Pages"
+            git push
+          fi
+
+      - name: Enable GitHub Pages
+        run: |
+          echo "GitHub Pages is ready to be enabled!"
+          echo "Website: https://ppradyoth.github.io/credential-guard-tracker"
+          echo ""
+          echo "To enable:"
+          echo "1. Go to Settings → Pages"
+          echo "2. Source: Deploy from a branch"
+          echo "3. Branch: main, /docs folder"
+          echo "4. Click Save"
