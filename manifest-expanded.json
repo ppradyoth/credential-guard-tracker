@@ -1,0 +1,293 @@
+{
+  "version": "2.0.0",
+  "name": "Credential Guard Tracker — Comprehensive AI Ecosystem",
+  "description": "Comprehensive security tracking for credential-guard plugin and related security initiatives across the entire AI CLI and agent ecosystem (inspired by Big Model Radar)",
+  "author": {
+    "name": "Pradyoth Prashanth",
+    "email": "pradyoth0@gmail.com",
+    "url": "https://github.com/ppradyoth"
+  },
+  "scope": "Tracks security and credential protection initiatives across 7+ AI CLI tools, agent frameworks, and ecosystem projects",
+
+  "tracking": {
+    "primary_pr": {
+      "owner": "anthropics",
+      "repo": "claude-code",
+      "pr_number": 62099,
+      "title": "Add credential-guard plugin for hardcoded secret detection",
+      "url": "https://github.com/anthropics/claude-code/pull/62099"
+    },
+
+    "ai_cli_tools": [
+      {
+        "name": "Claude Code",
+        "owner": "anthropics",
+        "repo": "claude-code",
+        "focus": "Primary — credential-guard plugin origin"
+      },
+      {
+        "name": "OpenAI Codex",
+        "owner": "openai",
+        "repo": "codex",
+        "focus": "Competitive security initiatives"
+      },
+      {
+        "name": "Gemini CLI",
+        "owner": "google-gemini",
+        "repo": "gemini-cli",
+        "focus": "Security and permission control"
+      },
+      {
+        "name": "GitHub Copilot CLI",
+        "owner": "github",
+        "repo": "copilot-cli",
+        "focus": "Auth security and credential handling"
+      },
+      {
+        "name": "Kimi Code CLI",
+        "owner": "MoonshotAI",
+        "repo": "kimi-cli",
+        "focus": "Plugin ecosystem and security"
+      },
+      {
+        "name": "OpenCode",
+        "owner": "anomalyco",
+        "repo": "opencode",
+        "focus": "Credential protection patterns"
+      },
+      {
+        "name": "Qwen Code",
+        "owner": "QwenLM",
+        "repo": "qwen-code",
+        "focus": "Telemetry and data security"
+      }
+    ],
+
+    "security_plugins": [
+      {
+        "name": "Claude Code Security Guidance",
+        "owner": "anthropics",
+        "repo": "claude-code",
+        "path": "plugins/security-guidance",
+        "focus": "Existing security patterns (XSS, injection, etc)"
+      },
+      {
+        "name": "Claude Code Hookify",
+        "owner": "anthropics",
+        "repo": "claude-code",
+        "path": "plugins/hookify",
+        "focus": "Custom hook creation for security"
+      },
+      {
+        "name": "Credential Guard (New)",
+        "owner": "ppradyoth",
+        "repo": "credential-guard-tracker",
+        "focus": "Hardcoded credential detection"
+      }
+    ],
+
+    "agent_frameworks": [
+      {
+        "name": "Claude Agent SDK",
+        "owner": "anthropics",
+        "repo": "anthropics-sdk-python",
+        "focus": "Agent security and permission model"
+      },
+      {
+        "name": "OpenClaw",
+        "owner": "openclaw",
+        "repo": "openclaw",
+        "focus": "Multi-agent orchestration, credential isolation"
+      },
+      {
+        "name": "Langchain",
+        "owner": "langchain-ai",
+        "repo": "langchain",
+        "focus": "Agent tools and credential management"
+      },
+      {
+        "name": "AutoGen",
+        "owner": "microsoft",
+        "repo": "autogen",
+        "focus": "Agent communication and security"
+      },
+      {
+        "name": "Crew AI",
+        "owner": "joaomdmoura",
+        "repo": "crewai",
+        "focus": "Multi-agent credential handling"
+      }
+    ],
+
+    "related_security_repos": [
+      {
+        "name": "OWASP Top 10",
+        "owner": "OWASP",
+        "repo": "Top10",
+        "focus": "Security best practices reference"
+      },
+      {
+        "name": "Snyk Vulnerable Dependencies",
+        "owner": "snyk",
+        "repo": "snyk-python",
+        "focus": "Vulnerability detection tools"
+      },
+      {
+        "name": "GitGuardian Scanner",
+        "owner": "GitGuardian",
+        "repo": "ggshield",
+        "focus": "Secret scanning (competitive analysis)"
+      },
+      {
+        "name": "Hugging Face Transformers",
+        "owner": "huggingface",
+        "repo": "transformers",
+        "focus": "Model security and safe loading"
+      }
+    ]
+  },
+
+  "keywords_and_patterns": {
+    "credential_keywords": [
+      "credential",
+      "secret",
+      "api_key",
+      "apikey",
+      "password",
+      "token",
+      "bearer",
+      "authentication",
+      "oauth",
+      "jwt",
+      "private_key"
+    ],
+
+    "security_keywords": [
+      "security",
+      "hardcoded",
+      "hardcode",
+      "injection",
+      "xss",
+      "permission",
+      "auth",
+      "encrypt",
+      "vulnerability",
+      "exploit"
+    ],
+
+    "credential_patterns": {
+      "github_pat": "ghp_[A-Za-z0-9]{36,}",
+      "aws_access_key": "AKIA[0-9A-Z]{16}",
+      "api_key_generic": "sk-[A-Za-z0-9]{20,}",
+      "private_key_pem": "-----BEGIN.*PRIVATE KEY-----",
+      "database_url": "postgres://.*:.*@.*",
+      "aws_secret": "aws_secret_access_key"
+    }
+  },
+
+  "metrics": {
+    "tracked_metrics": [
+      {
+        "name": "pr_status",
+        "repos": ["anthropics/claude-code"],
+        "description": "credential-guard PR #62099 status and engagement"
+      },
+      {
+        "name": "security_issues",
+        "repos": ["*"],
+        "description": "Security-related issues across all AI CLI tools"
+      },
+      {
+        "name": "credential_leaks",
+        "repos": ["*"],
+        "description": "Reported credential exposure incidents"
+      },
+      {
+        "name": "security_prs",
+        "repos": ["*"],
+        "description": "Security feature PRs across ecosystem"
+      },
+      {
+        "name": "plugin_adoption",
+        "repos": ["anthropics/claude-code"],
+        "description": "credential-guard plugin stars and usage"
+      },
+      {
+        "name": "ecosystem_trend",
+        "repos": ["*"],
+        "description": "Security focus trend across AI CLI tools"
+      }
+    ]
+  },
+
+  "report_schedule": {
+    "daily": {
+      "time": "08:00 UTC",
+      "description": "24-hour snapshots across all tracked repos",
+      "includes": [
+        "credential-guard PR metrics",
+        "New security issues (all repos)",
+        "Credential-related issues",
+        "Security PRs and merges"
+      ]
+    },
+    "weekly": {
+      "day": "Monday",
+      "time": "09:00 UTC",
+      "description": "7-day trend analysis and ecosystem comparison"
+    },
+    "monthly": {
+      "day": "1st",
+      "time": "10:00 UTC",
+      "description": "Deep dive on security initiatives across ecosystem"
+    }
+  },
+
+  "ecosystem_analysis": {
+    "primary_focus": "credential-guard plugin for Claude Code",
+    "secondary_focus": "Related security initiatives across AI CLI tools",
+    "tertiary_focus": "Agent framework security and credential handling",
+    "comparative": "How other tools address similar security challenges"
+  },
+
+  "github_search_scope": {
+    "queries": [
+      "credential detection",
+      "secret scanning",
+      "hardcoded secrets",
+      "api key protection",
+      "security hooks",
+      "authentication guards"
+    ],
+    "filters": [
+      "language:python",
+      "language:typescript",
+      "language:javascript",
+      "topic:security",
+      "topic:authentication"
+    ]
+  },
+
+  "comparison_table": {
+    "tools": [
+      "Claude Code",
+      "OpenAI Codex",
+      "Gemini CLI",
+      "GitHub Copilot CLI",
+      "Kimi Code CLI",
+      "OpenCode",
+      "Qwen Code"
+    ],
+    "dimensions": [
+      "Credential Detection",
+      "Secret Scanning",
+      "Permission Model",
+      "Audit Trail",
+      "Plugin Security",
+      "Agent Isolation",
+      "Community Initiatives"
+    ]
+  },
+
+  "notes": "This expanded manifest enables comprehensive security tracking across the entire AI CLI and agent ecosystem. Similar in scope to Big Model Radar but focused specifically on credential protection and security initiatives."
+}
