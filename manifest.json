@@ -1,0 +1,150 @@
+{
+  "version": "1.0.0",
+  "name": "Credential Guard Tracker",
+  "description": "Automated daily ecosystem tracking for credential-guard plugin and security initiatives",
+  "author": {
+    "name": "Pradyoth Prashanth",
+    "email": "pradyoth0@gmail.com",
+    "url": "https://github.com/ppradyoth"
+  },
+  "tracking": {
+    "primary_pr": {
+      "owner": "anthropics",
+      "repo": "claude-code",
+      "pr_number": 62099,
+      "title": "Add credential-guard plugin for hardcoded secret detection",
+      "url": "https://github.com/anthropics/claude-code/pull/62099"
+    },
+    "related_issues": [
+      {
+        "number": 62095,
+        "title": "Feature Request: Built-in credential detection for file writes and routines",
+        "url": "https://github.com/anthropics/claude-code/issues/62095"
+      }
+    ],
+    "related_repositories": [
+      {
+        "name": "Claude Code",
+        "owner": "anthropics",
+        "repo": "claude-code",
+        "focus": "Primary repository for credential-guard plugin"
+      },
+      {
+        "name": "Claude Code Action",
+        "owner": "anthropics",
+        "repo": "claude-code-action",
+        "focus": "CI/CD integration and automation"
+      },
+      {
+        "name": "Gemini CLI",
+        "owner": "google-gemini",
+        "repo": "gemini-cli",
+        "focus": "Competitive security initiatives tracking"
+      },
+      {
+        "name": "OpenAI Codex",
+        "owner": "openai",
+        "repo": "codex",
+        "focus": "AI CLI tool ecosystem trends"
+      },
+      {
+        "name": "GitHub Copilot CLI",
+        "owner": "github",
+        "repo": "copilot-cli",
+        "focus": "Related security features and standards"
+      }
+    ]
+  },
+  "metrics": {
+    "primary_metrics": [
+      {
+        "name": "pr_status",
+        "description": "Open/Closed/Merged status of #62099",
+        "source": "GitHub REST API",
+        "update_frequency": "hourly"
+      },
+      {
+        "name": "pr_engagement",
+        "description": "Comments, reactions, reviews on PR",
+        "source": "GitHub REST API",
+        "update_frequency": "hourly"
+      },
+      {
+        "name": "plugin_stars",
+        "description": "Repository stars (proxy for adoption)",
+        "source": "GitHub REST API",
+        "update_frequency": "daily"
+      },
+      {
+        "name": "citations",
+        "description": "Mentions in Big Model Radar, GitHub, Twitter",
+        "source": "Big Model Radar API, GitHub Search, Twitter API",
+        "update_frequency": "daily"
+      }
+    ],
+    "ecosystem_metrics": [
+      {
+        "name": "related_security_prs",
+        "description": "Similar security initiatives in other AI CLI tools",
+        "source": "GitHub Search across tracked repos",
+        "update_frequency": "daily"
+      },
+      {
+        "name": "credential_issues",
+        "description": "Issues related to hardcoded secrets, credentials",
+        "source": "GitHub Search",
+        "update_frequency": "daily"
+      },
+      {
+        "name": "ecosystem_trend",
+        "description": "Security-focused features trending in AI CLI tools",
+        "source": "GitHub trending, Big Model Radar",
+        "update_frequency": "weekly"
+      }
+    ]
+  },
+  "report_schedule": {
+    "daily": {
+      "time": "08:00 UTC",
+      "label": "daily-report",
+      "retention_days": 30,
+      "description": "24-hour metric snapshots and highlights"
+    },
+    "weekly": {
+      "day": "Monday",
+      "time": "09:00 UTC",
+      "label": "weekly-report",
+      "retention_days": 90,
+      "description": "7-day trend analysis and insights"
+    },
+    "monthly": {
+      "day": "1st",
+      "time": "10:00 UTC",
+      "label": "monthly-report",
+      "retention_days": 365,
+      "description": "30-day deep dive and ecosystem comparison"
+    }
+  },
+  "search_keywords": [
+    "credential",
+    "secret",
+    "api_key",
+    "apikey",
+    "hardcoded",
+    "hardcode",
+    "token",
+    "password",
+    "authentication",
+    "security"
+  ],
+  "github_actions": {
+    "permissions": [
+      "contents:read",
+      "issues:write",
+      "pull-requests:read"
+    ],
+    "secrets_required": [
+      "GITHUB_TOKEN"
+    ]
+  }
+}
