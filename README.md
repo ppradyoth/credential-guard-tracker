@@ -1,6 +1,13 @@
 # Credential Guard Tracker
 
+[![Tests](https://github.com/ppradyoth/credential-guard-tracker/actions/workflows/tests.yml/badge.svg)](https://github.com/ppradyoth/credential-guard-tracker/actions/workflows/tests.yml)
+[![Daily Report](https://github.com/ppradyoth/credential-guard-tracker/actions/workflows/daily-report.yml/badge.svg)](https://github.com/ppradyoth/credential-guard-tracker/actions/workflows/daily-report.yml)
+![Python](https://img.shields.io/badge/python-3.11-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+
 Automated daily ecosystem tracking for credential-guard plugin and security initiatives in Claude Code.
+
+**Keywords:** credential security · AI supply chain security · secrets detection · LLM tool hardening · Claude Code plugins
 
 Inspired by [Big Model Radar](https://github.com/gsscsd/big_model_radar), but focused on **credential protection** and **security hardening** for AI CLI tools.
 
@@ -188,6 +195,19 @@ Edit `manifest.json` to customize:
 }
 ```
 
+## Testing
+
+The metric-collection and report-generation logic is covered by a unit test suite
+(no network or GitHub token required — API responses are stubbed):
+
+```bash
+pip install pytest requests
+pytest -q
+```
+
+Tests run automatically on every push and pull request via the
+[Tests workflow](.github/workflows/tests.yml).
+
 ## License
 
 MIT — Use freely for your own tracking systems.
@@ -196,3 +216,7 @@ MIT — Use freely for your own tracking systems.
 
 - [Big Model Radar](https://github.com/gsscsd/big_model_radar) — Multilingual AI CLI ecosystem tracking
 - [credential-guard](https://github.com/anthropics/claude-code/pull/62099) — The plugin being tracked
+
+---
+
+Maintained with [Claude Code](https://claude.ai/code) — see the [autonomous agent experiment](https://github.com/ppradyoth/social-experiment-with-agents).
