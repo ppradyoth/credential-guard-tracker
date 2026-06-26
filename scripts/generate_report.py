@@ -125,6 +125,49 @@ This report is auto-generated daily. Last update: {datetime.utcnow().isoformat()
     return report
 
 
+def _format_delta(delta: int) -> str:
+    """Render a signed change, avoiding '+-3' for negative deltas."""
+    if delta > 0:
+        return f"+{delta}"
+    if delta < 0:
+        return str(delta)
+    return "0"
+
+
+def _weekly_highlights(earliest: Dict[str, Any], latest: Dict[str, Any]) -> str:
+    """Build data-driven highlights from the actual start/end deltas."""
+    stars_delta = latest["repo"]["stars"] - earliest["repo"]["stars"]
+    comments_delta = latest["pr"]["comments_count"] - earliest["pr"]["comments_count"]
+    pr_state = latest["pr"]["state"]
+    issues_total = sum(len(v) for v in latest.get("related_issues", {}).values())
+
+    lines = []
+
+    if latest["pr"].get("merged_at"):
+        lines.append("✅ **Merged** — PR landed during this window")
+    elif pr_state == "open":
+        lines.append("🟢 **Open** — PR remains open during this window")
+    else:
+        lines.append("🟣 **Closed** — PR was closed during this window")
+
+    if comments_delta > 0:
+        lines.append(f"💬 **Active Discussion** — {_format_delta(comments_delta)} comments over the window")
+    elif comments_delta == 0:
+        lines.append("💬 **Quiet** — no new comments over the window")
+
+    if stars_delta > 0:
+        lines.append(f"✅ **Growing Interest** — {_format_delta(stars_delta)} stars over the 7-day window")
+    elif stars_delta == 0:
+        lines.append("➖ **Stable Interest** — star count unchanged over the window")
+    else:
+        lines.append(f"🔻 **Declining Interest** — {_format_delta(stars_delta)} stars over the window")
+
+    if issues_total > 0:
+        lines.append(f"🔵 **Ecosystem Engagement** — {issues_total} related issues detected in the Claude Code ecosystem")
+
+    return "\n".join(lines)
+
+
 def generate_weekly_report(metrics_history: list) -> str:
     """Generate weekly rollup report."""
     if not metrics_history:
@@ -132,6 +175,10 @@ def generate_weekly_report(metrics_history: list) -> str:
 
     latest = metrics_history[-1]
     earliest = metrics_history[0]
+
+    comments_delta = latest['pr']['comments_count'] - earliest['pr']['comments_count']
+    stars_delta = latest['repo']['stars'] - earliest['repo']['stars']
+    issues_delta = latest['repo']['open_issues'] - earliest['repo']['open_issues']
 
     report = f"""================================================================================
   📈 Credential Guard Tracker — Weekly Rollup
@@ -144,15 +191,13 @@ def generate_weekly_report(metrics_history: list) -> str:
 
 | Metric | Start | End | Change |
 |--------|-------|-----|--------|
-| PR Comments | {earliest['pr']['comments_count']} | {latest['pr']['comments_count']} | +{latest['pr']['comments_count'] - earliest['pr']['comments_count']} |
-| Repository Stars | {earliest['repo']['stars']} | {latest['repo']['stars']} | +{latest['repo']['stars'] - earliest['repo']['stars']} |
-| Open Issues | {earliest['repo']['open_issues']} | {latest['repo']['open_issues']} | {latest['repo']['open_issues'] - earliest['repo']['open_issues']} |
+| PR Comments | {earliest['pr']['comments_count']} | {latest['pr']['comments_count']} | {_format_delta(comments_delta)} |
+| Repository Stars | {earliest['repo']['stars']} | {latest['repo']['stars']} | {_format_delta(stars_delta)} |
+| Open Issues | {earliest['repo']['open_issues']} | {latest['repo']['open_issues']} | {_format_delta(issues_delta)} |
 
 ## Highlights
 
-✅ **Consistent Progress** — PR remains open and under active discussion
-✅ **Growing Interest** — Star count increasing across the 7-day window
-🔵 **Ecosystem Engagement** — Multiple related issues detected in Claude Code ecosystem
+{_weekly_highlights(earliest, latest)}
 
 ## Recommendations
 
