@@ -133,3 +133,42 @@ def test_format_timestamp_iso_z():
     ts = format_timestamp()
     assert ts.endswith("Z")
     assert "T" in ts
+
+
+import requests
+
+
+class FlakySession:
+    def __init__(self, fail_times, final):
+        self.headers = {}
+        self.fail_times = fail_times
+        self.final = final
+        self.attempts = 0
+
+    def get(self, url, params=None):
+        self.attempts += 1
+        if self.attempts <= self.fail_times:
+            raise requests.exceptions.ConnectionError("boom")
+        return self.final
+
+
+def test_get_retries_then_succeeds():
+    gh = GitHubAPI(token="t", max_retries=3, backoff_base=0)
+    gh.session = FlakySession(fail_times=2, final=FakeResp({"items": [{"number": 7}]}))
+    slept = []
+    gh._sleep = lambda s: slept.append(s)
+    out = gh.search_issues("leak", repo="o/r")
+    assert out == [{"number": 7}]
+    assert gh.session.attempts == 3
+    assert len(slept) == 2
+
+
+def test_get_raises_after_exhausting_retries():
+    gh = GitHubAPI(token="t", max_retries=2, backoff_base=0)
+    gh.session = FlakySession(fail_times=99, final=FakeResp({}))
+    gh._sleep = lambda s: None
+    import pytest
+
+    with pytest.raises(requests.exceptions.ConnectionError):
+        gh.get_repo("o", "r")
+    assert gh.session.attempts == 3

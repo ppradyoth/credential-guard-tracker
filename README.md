@@ -17,8 +17,31 @@ Inspired by [Big Model Radar](https://github.com/gsscsd/big_model_radar), but fo
 - Monitors credential-guard PR #62099 status & metrics
 - Tracks adoption, community mentions, and related security PRs
 - Scans for credential-related issues across AI CLI ecosystems
+- **Detects and ranks security signals** in tracked issues by severity (critical / high / medium)
 - Publishes bilingual English daily digests as GitHub Issues
 - Generates weekly rollup reports with trend analysis
+
+## 🔐 Security Signal Detection
+
+Every daily report runs a keyword-tiered classifier over the tracked issues and
+surfaces the highest-risk ones first — so credential leaks and supply-chain risks
+don't get buried in routine noise. Each signal is tagged with the matched term and
+its severity:
+
+```text
+## 🔐 Security Signals
+
+**3 signal(s)** — 🟥 0 critical · 🟧 1 high · 🟨 2 medium
+
+  🟧 **HIGH** 🔵 [#222](https://github.com/anthropics/claude-code/issues/222) — Supply chain risk: unpinned action exfiltrates token
+     • matched `supply chain` | 12 comments
+  🟨 **MEDIUM** 🔵 [#100](https://github.com/anthropics/claude-code/issues/100) — Secrets leak in logs
+     • matched `secret` | 5 comments
+```
+
+Severity tiers are defined in `scripts/generate_report.py` (`_SECURITY_SIGNAL_PATTERNS`)
+and are fully unit-tested. This is the kind of triage signal that makes the tracker
+useful as **AI supply-chain security tooling**, not just a metrics dashboard.
 
 ## Tracked Metrics
 

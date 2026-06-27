@@ -5,7 +5,7 @@ Generate markdown daily/weekly/monthly reports from collected metrics.
 
 import json
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 
 def format_pr_status(pr: Dict[str, Any]) -> str:
@@ -85,6 +85,137 @@ def format_related_issues(issues_by_keyword: Dict[str, list]) -> str:
     return "\n".join(lines)
 
 
+_SECURITY_SIGNAL_PATTERNS = [
+    (
+        "critical",
+        [
+            "exposed secret",
+            "leaked credential",
+            "leaked secret",
+            "hardcoded secret",
+            "hardcoded credential",
+            "private key leak",
+            "remote code execution",
+            "rce",
+        ],
+    ),
+    (
+        "high",
+        [
+            "secret leak",
+            "credential leak",
+            "token leak",
+            "api key",
+            "apikey",
+            "supply chain",
+            "exfiltrat",
+            "cve-",
+            "arbitrary code",
+        ],
+    ),
+    (
+        "medium",
+        [
+            "secret",
+            "credential",
+            "password",
+            "hardcode",
+            "vulnerab",
+            "injection",
+            "unauthorized",
+            "leak",
+        ],
+    ),
+]
+
+_SEVERITY_RANK = {"critical": 3, "high": 2, "medium": 1}
+_SEVERITY_EMOJI = {"critical": "🟥", "high": "🟧", "medium": "🟨"}
+
+
+def detect_security_signals(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Scan tracked issues for security-risk keywords and rank by severity.
+
+    Each issue is matched against tiered keyword patterns and assigned the
+    highest-severity tier it matches. Returns a de-duplicated list sorted by
+    severity (critical first), then by comment activity.
+    """
+    signals: Dict[int, Dict[str, Any]] = {}
+
+    for keyword, issues in (metrics.get("related_issues") or {}).items():
+        for issue in issues:
+            title = (issue.get("title") or "").lower()
+            matched_severity = None
+            matched_term = None
+            for severity, terms in _SECURITY_SIGNAL_PATTERNS:
+                for term in terms:
+                    if term in title:
+                        matched_severity = severity
+                        matched_term = term
+                        break
+                if matched_severity:
+                    break
+
+            if not matched_severity:
+                continue
+
+            number = issue.get("number")
+            existing = signals.get(number)
+            if existing and _SEVERITY_RANK[existing["severity"]] >= _SEVERITY_RANK[matched_severity]:
+                continue
+
+            signals[number] = {
+                "number": number,
+                "title": issue.get("title", ""),
+                "url": issue.get("url", ""),
+                "state": issue.get("state", ""),
+                "comments": issue.get("comments", 0),
+                "severity": matched_severity,
+                "matched_term": matched_term,
+            }
+
+    return sorted(
+        signals.values(),
+        key=lambda s: (_SEVERITY_RANK[s["severity"]], s["comments"]),
+        reverse=True,
+    )
+
+
+def format_security_signals(signals: List[Dict[str, Any]]) -> str:
+    """Format the ranked security-signal section."""
+    lines = ["## 🔐 Security Signals", ""]
+
+    if not signals:
+        lines.append("No elevated security signals detected in tracked issues.")
+        lines.append("")
+        return "\n".join(lines)
+
+    counts = {"critical": 0, "high": 0, "medium": 0}
+    for signal in signals:
+        counts[signal["severity"]] += 1
+
+    lines.append(
+        f"**{len(signals)} signal(s)** — "
+        f"🟥 {counts['critical']} critical · "
+        f"🟧 {counts['high']} high · "
+        f"🟨 {counts['medium']} medium"
+    )
+    lines.append("")
+
+    for signal in signals:
+        emoji = _SEVERITY_EMOJI[signal["severity"]]
+        state = "✅" if signal["state"] == "closed" else "🔵"
+        lines.append(
+            f"  {emoji} **{signal['severity'].upper()}** {state} "
+            f"[#{signal['number']}]({signal['url']}) — {signal['title']}"
+        )
+        lines.append(
+            f"     • matched `{signal['matched_term']}` | {signal['comments']} comments"
+        )
+    lines.append("")
+
+    return "\n".join(lines)
+
+
 def generate_daily_report(metrics: Dict[str, Any]) -> str:
     """Generate daily report markdown."""
     generated = metrics.get("generated_at", "").split("T")[0]
@@ -102,11 +233,14 @@ def generate_daily_report(metrics: Dict[str, Any]) -> str:
 
 {format_related_issues(metrics['related_issues'])}
 
+{format_security_signals(detect_security_signals(metrics))}
+
 ## 🎯 Key Insights
 
 - **PR Health:** {metrics['pr']['state'].upper()} with {metrics['pr']['comments_count']} comments
 - **Repository Momentum:** ⭐ {metrics['repo']['stars']:,} stars, 📊 {metrics['repo']['watchers']:,} watchers
 - **Ecosystem Activity:** {sum(len(v) for v in metrics['related_issues'].values())} related issues found
+- **Security Signals:** {len(detect_security_signals(metrics))} elevated signal(s) detected in tracked issues
 - **Last Activity:** {metrics['repo']['updated_at'][:10]}
 
 ## 📌 Notes
