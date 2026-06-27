@@ -6,9 +6,11 @@ from conftest import SAMPLE_METRICS
 from generate_report import (
     _format_delta,
     _weekly_highlights,
+    detect_security_signals,
     format_pr_status,
     format_related_issues,
     format_repo_stats,
+    format_security_signals,
     generate_daily_report,
     generate_weekly_report,
 )
@@ -128,3 +130,71 @@ def test_weekly_highlights_stable_and_merged(metrics):
     out = _weekly_highlights(start, end)
     assert "Merged" in out
     assert "Stable Interest" in out  # stars unchanged
+
+
+def test_detect_security_signals_ranks_by_severity():
+    metrics = {
+        "related_issues": {
+            "secret": [
+                {"number": 1, "title": "Exposed secret in build logs", "state": "open",
+                 "url": "u1", "comments": 2},
+                {"number": 2, "title": "Add password reset flow", "state": "closed",
+                 "url": "u2", "comments": 0},
+            ],
+            "supply": [
+                {"number": 3, "title": "Supply chain risk in dependency", "state": "open",
+                 "url": "u3", "comments": 9},
+            ],
+        }
+    }
+    signals = detect_security_signals(metrics)
+    assert [s["number"] for s in signals] == [1, 3, 2]
+    assert signals[0]["severity"] == "critical"
+    assert signals[1]["severity"] == "high"
+    assert signals[2]["severity"] == "medium"
+
+
+def test_detect_security_signals_dedupes_to_highest_severity():
+    metrics = {
+        "related_issues": {
+            "a": [{"number": 5, "title": "leak of data", "state": "open", "url": "u", "comments": 0}],
+            "b": [{"number": 5, "title": "Leaked credential exposed", "state": "open", "url": "u", "comments": 0}],
+        }
+    }
+    signals = detect_security_signals(metrics)
+    assert len(signals) == 1
+    assert signals[0]["severity"] == "critical"
+
+
+def test_detect_security_signals_ignores_benign():
+    metrics = {"related_issues": {"x": [
+        {"number": 9, "title": "Improve docs formatting", "state": "open", "url": "u", "comments": 0},
+    ]}}
+    assert detect_security_signals(metrics) == []
+
+
+def test_format_security_signals_empty():
+    out = format_security_signals([])
+    assert "No elevated security signals" in out
+    assert "## 🔐 Security Signals" in out
+
+
+def test_format_security_signals_renders_counts():
+    signals = [
+        {"number": 1, "title": "Exposed secret", "url": "u", "state": "open",
+         "comments": 2, "severity": "critical", "matched_term": "exposed secret"},
+    ]
+    out = format_security_signals(signals)
+    assert "1 critical" in out
+    assert "CRITICAL" in out
+    assert "matched `exposed secret`" in out
+
+
+def test_daily_report_includes_security_signals(metrics):
+    metrics["related_issues"]["secrets"] = [
+        {"number": 100, "title": "Secrets leak in logs", "state": "open",
+         "url": "https://x/issues/100", "comments": 5, "created_at": "2026-06-01T00:00:00Z"},
+    ]
+    out = generate_daily_report(metrics)
+    assert "## 🔐 Security Signals" in out
+    assert "Security Signals:" in out
