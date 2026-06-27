@@ -5,7 +5,7 @@ Generate markdown daily/weekly/monthly reports from collected metrics.
 
 import json
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 
 def format_pr_status(pr: Dict[str, Any]) -> str:
@@ -85,6 +85,137 @@ def format_related_issues(issues_by_keyword: Dict[str, list]) -> str:
     return "\n".join(lines)
 
 
+_SECURITY_SIGNAL_PATTERNS = [
+    (
+        "critical",
+        [
+            "exposed secret",
+            "leaked credential",
+            "leaked secret",
+            "hardcoded secret",
+            "hardcoded credential",
+            "private key leak",
+            "remote code execution",
+            "rce",
+        ],
+    ),
+    (
+        "high",
+        [
+            "secret leak",
+            "credential leak",
+            "token leak",
+            "api key",
+            "apikey",
+            "supply chain",
+            "exfiltrat",
+            "cve-",
+            "arbitrary code",
+        ],
+    ),
+    (
+        "medium",
+        [
+            "secret",
+            "credential",
+            "password",
+            "hardcode",
+            "vulnerab",
+            "injection",
+            "unauthorized",
+            "leak",
+        ],
+    ),
+]
+
+_SEVERITY_RANK = {"critical": 3, "high": 2, "medium": 1}
+_SEVERITY_EMOJI = {"critical": "🟥", "high": "🟧", "medium": "🟨"}
+
+
+def detect_security_signals(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Scan tracked issues for security-risk keywords and rank by severity.
+
+    Each issue is matched against tiered keyword patterns and assigned the
+    highest-severity tier it matches. Returns a de-duplicated list sorted by
+    severity (critical first), then by comment activity.
+    """
+    signals: Dict[int, Dict[str, Any]] = {}
+
+    for keyword, issues in (metrics.get("related_issues") or {}).items():
+        for issue in issues:
+            title = (issue.get("title") or "").lower()
+            matched_severity = None
+            matched_term = None
+            for severity, terms in _SECURITY_SIGNAL_PATTERNS:
+                for term in terms:
+                    if term in title:
+                        matched_severity = severity
+                        matched_term = term
+                        break
+                if matched_severity:
+                    break
+
+            if not matched_severity:
+                continue
+
+            number = issue.get("number")
+            existing = signals.get(number)
+            if existing and _SEVERITY_RANK[existing["severity"]] >= _SEVERITY_RANK[matched_severity]:
+                continue
+
+            signals[number] = {
+                "number": number,
+                "title": issue.get("title", ""),
+                "url": issue.get("url", ""),
+                "state": issue.get("state", ""),
+                "comments": issue.get("comments", 0),
+                "severity": matched_severity,
+                "matched_term": matched_term,
+            }
+
+    return sorted(
+        signals.values(),
+        key=lambda s: (_SEVERITY_RANK[s["severity"]], s["comments"]),
+        reverse=True,
+    )
+
+
+def format_security_signals(signals: List[Dict[str, Any]]) -> str:
+    """Format the ranked security-signal section."""
+    lines = ["## 🔐 Security Signals", ""]
+
+    if not signals:
+        lines.append("No elevated security signals detected in tracked issues.")
+        lines.append("")
+        return "\n".join(lines)
+
+    counts = {"critical": 0, "high": 0, "medium": 0}
+    for signal in signals:
+        counts[signal["severity"]] += 1
+
+    lines.append(
+        f"**{len(signals)} signal(s)** — "
+        f"🟥 {counts['critical']} critical · "
+        f"🟧 {counts['high']} high · "
+        f"🟨 {counts['medium']} medium"
+    )
+    lines.append("")
+
+    for signal in signals:
+        emoji = _SEVERITY_EMOJI[signal["severity"]]
+        state = "✅" if signal["state"] == "closed" else "🔵"
+        lines.append(
+            f"  {emoji} **{signal['severity'].upper()}** {state} "
+            f"[#{signal['number']}]({signal['url']}) — {signal['title']}"
+        )
+        lines.append(
+            f"     • matched `{signal['matched_term']}` | {signal['comments']} comments"
+        )
+    lines.append("")
+
+    return "\n".join(lines)
+
+
 def generate_daily_report(metrics: Dict[str, Any]) -> str:
     """Generate daily report markdown."""
     generated = metrics.get("generated_at", "").split("T")[0]
@@ -102,11 +233,14 @@ def generate_daily_report(metrics: Dict[str, Any]) -> str:
 
 {format_related_issues(metrics['related_issues'])}
 
+{format_security_signals(detect_security_signals(metrics))}
+
 ## 🎯 Key Insights
 
 - **PR Health:** {metrics['pr']['state'].upper()} with {metrics['pr']['comments_count']} comments
 - **Repository Momentum:** ⭐ {metrics['repo']['stars']:,} stars, 📊 {metrics['repo']['watchers']:,} watchers
 - **Ecosystem Activity:** {sum(len(v) for v in metrics['related_issues'].values())} related issues found
+- **Security Signals:** {len(detect_security_signals(metrics))} elevated signal(s) detected in tracked issues
 - **Last Activity:** {metrics['repo']['updated_at'][:10]}
 
 ## 📌 Notes
@@ -125,6 +259,49 @@ This report is auto-generated daily. Last update: {datetime.utcnow().isoformat()
     return report
 
 
+def _format_delta(delta: int) -> str:
+    """Render a signed change, avoiding '+-3' for negative deltas."""
+    if delta > 0:
+        return f"+{delta}"
+    if delta < 0:
+        return str(delta)
+    return "0"
+
+
+def _weekly_highlights(earliest: Dict[str, Any], latest: Dict[str, Any]) -> str:
+    """Build data-driven highlights from the actual start/end deltas."""
+    stars_delta = latest["repo"]["stars"] - earliest["repo"]["stars"]
+    comments_delta = latest["pr"]["comments_count"] - earliest["pr"]["comments_count"]
+    pr_state = latest["pr"]["state"]
+    issues_total = sum(len(v) for v in latest.get("related_issues", {}).values())
+
+    lines = []
+
+    if latest["pr"].get("merged_at"):
+        lines.append("✅ **Merged** — PR landed during this window")
+    elif pr_state == "open":
+        lines.append("🟢 **Open** — PR remains open during this window")
+    else:
+        lines.append("🟣 **Closed** — PR was closed during this window")
+
+    if comments_delta > 0:
+        lines.append(f"💬 **Active Discussion** — {_format_delta(comments_delta)} comments over the window")
+    elif comments_delta == 0:
+        lines.append("💬 **Quiet** — no new comments over the window")
+
+    if stars_delta > 0:
+        lines.append(f"✅ **Growing Interest** — {_format_delta(stars_delta)} stars over the 7-day window")
+    elif stars_delta == 0:
+        lines.append("➖ **Stable Interest** — star count unchanged over the window")
+    else:
+        lines.append(f"🔻 **Declining Interest** — {_format_delta(stars_delta)} stars over the window")
+
+    if issues_total > 0:
+        lines.append(f"🔵 **Ecosystem Engagement** — {issues_total} related issues detected in the Claude Code ecosystem")
+
+    return "\n".join(lines)
+
+
 def generate_weekly_report(metrics_history: list) -> str:
     """Generate weekly rollup report."""
     if not metrics_history:
@@ -132,6 +309,10 @@ def generate_weekly_report(metrics_history: list) -> str:
 
     latest = metrics_history[-1]
     earliest = metrics_history[0]
+
+    comments_delta = latest['pr']['comments_count'] - earliest['pr']['comments_count']
+    stars_delta = latest['repo']['stars'] - earliest['repo']['stars']
+    issues_delta = latest['repo']['open_issues'] - earliest['repo']['open_issues']
 
     report = f"""================================================================================
   📈 Credential Guard Tracker — Weekly Rollup
@@ -144,15 +325,13 @@ def generate_weekly_report(metrics_history: list) -> str:
 
 | Metric | Start | End | Change |
 |--------|-------|-----|--------|
-| PR Comments | {earliest['pr']['comments_count']} | {latest['pr']['comments_count']} | +{latest['pr']['comments_count'] - earliest['pr']['comments_count']} |
-| Repository Stars | {earliest['repo']['stars']} | {latest['repo']['stars']} | +{latest['repo']['stars'] - earliest['repo']['stars']} |
-| Open Issues | {earliest['repo']['open_issues']} | {latest['repo']['open_issues']} | {latest['repo']['open_issues'] - earliest['repo']['open_issues']} |
+| PR Comments | {earliest['pr']['comments_count']} | {latest['pr']['comments_count']} | {_format_delta(comments_delta)} |
+| Repository Stars | {earliest['repo']['stars']} | {latest['repo']['stars']} | {_format_delta(stars_delta)} |
+| Open Issues | {earliest['repo']['open_issues']} | {latest['repo']['open_issues']} | {_format_delta(issues_delta)} |
 
 ## Highlights
 
-✅ **Consistent Progress** — PR remains open and under active discussion
-✅ **Growing Interest** — Star count increasing across the 7-day window
-🔵 **Ecosystem Engagement** — Multiple related issues detected in Claude Code ecosystem
+{_weekly_highlights(earliest, latest)}
 
 ## Recommendations
 
