@@ -173,6 +173,56 @@ def test_detect_security_signals_ignores_benign():
     assert detect_security_signals(metrics) == []
 
 
+def test_detect_security_signals_matches_body_when_title_clean():
+    metrics = {"related_issues": {"x": [
+        {"number": 11, "title": "Improve logging output", "state": "open", "url": "u",
+         "comments": 3, "body": "We accidentally print a leaked credential to stdout."},
+    ]}}
+    signals = detect_security_signals(metrics)
+    assert len(signals) == 1
+    assert signals[0]["severity"] == "critical"
+    assert signals[0]["matched_in"] == "body"
+    assert signals[0]["matched_term"] == "leaked credential"
+
+
+def test_detect_security_signals_title_preferred_over_body_on_tie():
+    metrics = {"related_issues": {"x": [
+        {"number": 12, "title": "password handling cleanup", "state": "open", "url": "u",
+         "comments": 0, "body": "also touches injection paths"},
+    ]}}
+    signals = detect_security_signals(metrics)
+    assert signals[0]["matched_in"] == "title"
+    assert signals[0]["severity"] == "medium"
+
+
+def test_detect_security_signals_body_outranks_lower_title():
+    metrics = {"related_issues": {"x": [
+        {"number": 13, "title": "minor leak in cache", "state": "open", "url": "u",
+         "comments": 0, "body": "Turns out this is a remote code execution bug."},
+    ]}}
+    signals = detect_security_signals(metrics)
+    assert signals[0]["severity"] == "critical"
+    assert signals[0]["matched_in"] == "body"
+
+
+def test_detect_security_signals_missing_body_ok():
+    metrics = {"related_issues": {"x": [
+        {"number": 14, "title": "Exposed secret in CI", "state": "open", "url": "u", "comments": 1},
+    ]}}
+    signals = detect_security_signals(metrics)
+    assert signals[0]["matched_in"] == "title"
+
+
+def test_format_security_signals_renders_matched_in():
+    signals = [
+        {"number": 1, "title": "Logging cleanup", "url": "u", "state": "open",
+         "comments": 2, "severity": "critical", "matched_term": "leaked credential",
+         "matched_in": "body"},
+    ]
+    out = format_security_signals(signals)
+    assert "matched `leaked credential` in body" in out
+
+
 def test_format_security_signals_empty():
     out = format_security_signals([])
     assert "No elevated security signals" in out

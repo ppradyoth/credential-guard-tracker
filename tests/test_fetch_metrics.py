@@ -103,6 +103,7 @@ class FakeGH:
                 "html_url": "https://x/issues/5",
                 "created_at": "2026-06-01T00:00:00Z",
                 "comments": 1,
+                "body": "b" * 600,
             }
         ]
 
@@ -127,6 +128,13 @@ def test_collect_related_issues_limits_keywords():
     out = collect_related_issues(FakeGH(None), "o/r", ["k1", "k2", "k3", "k4", "k5", "k6"])
     assert len(out) == 5
     assert all(len(v) <= 5 for v in out.values())
+
+
+def test_collect_related_issues_captures_truncated_body():
+    out = collect_related_issues(FakeGH(None), "o/r", ["k1"])
+    issue = out["k1"][0]
+    assert len(issue["body"]) == 500
+    assert set(issue["body"]) == {"b"}
 
 
 def test_format_timestamp_iso_z():
