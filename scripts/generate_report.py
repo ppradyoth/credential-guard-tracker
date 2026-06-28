@@ -132,30 +132,36 @@ _SEVERITY_RANK = {"critical": 3, "high": 2, "medium": 1}
 _SEVERITY_EMOJI = {"critical": "🟥", "high": "🟧", "medium": "🟨"}
 
 
+def _match_severity(text: str):
+    """Return the highest-severity (severity, term) matched in text, or (None, None)."""
+    text = (text or "").lower()
+    for severity, terms in _SECURITY_SIGNAL_PATTERNS:
+        for term in terms:
+            if term in text:
+                return severity, term
+    return None, None
+
+
 def detect_security_signals(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Scan tracked issues for security-risk keywords and rank by severity.
 
-    Each issue is matched against tiered keyword patterns and assigned the
-    highest-severity tier it matches. Returns a de-duplicated list sorted by
+    Each issue's title and body are matched against tiered keyword patterns;
+    the issue is assigned the highest-severity tier matched across both, with
+    the title preferred on ties. Returns a de-duplicated list sorted by
     severity (critical first), then by comment activity.
     """
     signals: Dict[int, Dict[str, Any]] = {}
 
     for keyword, issues in (metrics.get("related_issues") or {}).items():
         for issue in issues:
-            title = (issue.get("title") or "").lower()
-            matched_severity = None
-            matched_term = None
-            for severity, terms in _SECURITY_SIGNAL_PATTERNS:
-                for term in terms:
-                    if term in title:
-                        matched_severity = severity
-                        matched_term = term
-                        break
-                if matched_severity:
-                    break
+            title_sev, title_term = _match_severity(issue.get("title"))
+            body_sev, body_term = _match_severity(issue.get("body"))
 
-            if not matched_severity:
+            if title_sev and (not body_sev or _SEVERITY_RANK[title_sev] >= _SEVERITY_RANK[body_sev]):
+                matched_severity, matched_term, matched_in = title_sev, title_term, "title"
+            elif body_sev:
+                matched_severity, matched_term, matched_in = body_sev, body_term, "body"
+            else:
                 continue
 
             number = issue.get("number")
@@ -171,6 +177,7 @@ def detect_security_signals(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
                 "comments": issue.get("comments", 0),
                 "severity": matched_severity,
                 "matched_term": matched_term,
+                "matched_in": matched_in,
             }
 
     return sorted(
@@ -209,7 +216,8 @@ def format_security_signals(signals: List[Dict[str, Any]]) -> str:
             f"[#{signal['number']}]({signal['url']}) — {signal['title']}"
         )
         lines.append(
-            f"     • matched `{signal['matched_term']}` | {signal['comments']} comments"
+            f"     • matched `{signal['matched_term']}` in {signal.get('matched_in', 'title')} "
+            f"| {signal['comments']} comments"
         )
     lines.append("")
 

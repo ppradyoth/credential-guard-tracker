@@ -25,8 +25,10 @@ Inspired by [Big Model Radar](https://github.com/gsscsd/big_model_radar), but fo
 
 Every daily report runs a keyword-tiered classifier over the tracked issues and
 surfaces the highest-risk ones first — so credential leaks and supply-chain risks
-don't get buried in routine noise. Each signal is tagged with the matched term and
-its severity:
+don't get buried in routine noise. Both the **issue title and body** are scanned
+(highest severity across the two wins, title preferred on ties), so a risk buried
+in a long write-up is still caught. Each signal is tagged with the matched term,
+where it matched, and its severity:
 
 ```text
 ## 🔐 Security Signals
@@ -34,9 +36,9 @@ its severity:
 **3 signal(s)** — 🟥 0 critical · 🟧 1 high · 🟨 2 medium
 
   🟧 **HIGH** 🔵 [#222](https://github.com/anthropics/claude-code/issues/222) — Supply chain risk: unpinned action exfiltrates token
-     • matched `supply chain` | 12 comments
-  🟨 **MEDIUM** 🔵 [#100](https://github.com/anthropics/claude-code/issues/100) — Secrets leak in logs
-     • matched `secret` | 5 comments
+     • matched `supply chain` in title | 12 comments
+  🟨 **MEDIUM** 🔵 [#100](https://github.com/anthropics/claude-code/issues/100) — Refactor token cache
+     • matched `credential` in body | 5 comments
 ```
 
 Severity tiers are defined in `scripts/generate_report.py` (`_SECURITY_SIGNAL_PATTERNS`)
