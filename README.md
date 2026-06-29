@@ -27,8 +27,10 @@ Every daily report runs a keyword-tiered classifier over the tracked issues and
 surfaces the highest-risk ones first — so credential leaks and supply-chain risks
 don't get buried in routine noise. Both the **issue title and body** are scanned
 (highest severity across the two wins, title preferred on ties), so a risk buried
-in a long write-up is still caught. Each signal is tagged with the matched term,
-where it matched, and its severity:
+in a long write-up is still caught. Keyword matching is **word-boundary anchored**,
+so short acronyms like `rce` flag a genuine "Possible RCE in parser" without
+false-positiving on unrelated words such as `source`, `resource`, or `enforce`.
+Each signal is tagged with the matched term, where it matched, and its severity:
 
 ```text
 ## 🔐 Security Signals

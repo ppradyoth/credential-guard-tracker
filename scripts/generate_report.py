@@ -4,6 +4,7 @@ Generate markdown daily/weekly/monthly reports from collected metrics.
 """
 
 import json
+import re
 from datetime import datetime
 from typing import Dict, Any, List
 
@@ -131,13 +132,22 @@ _SECURITY_SIGNAL_PATTERNS = [
 _SEVERITY_RANK = {"critical": 3, "high": 2, "medium": 1}
 _SEVERITY_EMOJI = {"critical": "🟥", "high": "🟧", "medium": "🟨"}
 
+# Pre-compile each keyword as a word-boundary-anchored prefix match. Anchoring on
+# `\b` stops short acronyms (e.g. "rce") from matching inside unrelated words
+# ("source", "resource", "enforce", "commerce") while still allowing genuine
+# stems ("exfiltrat" → "exfiltration", "vulnerab" → "vulnerability") to match.
+_COMPILED_SIGNAL_PATTERNS = [
+    (severity, [(term, re.compile(r"\b" + re.escape(term))) for term in terms])
+    for severity, terms in _SECURITY_SIGNAL_PATTERNS
+]
+
 
 def _match_severity(text: str):
     """Return the highest-severity (severity, term) matched in text, or (None, None)."""
     text = (text or "").lower()
-    for severity, terms in _SECURITY_SIGNAL_PATTERNS:
-        for term in terms:
-            if term in text:
+    for severity, terms in _COMPILED_SIGNAL_PATTERNS:
+        for term, pattern in terms:
+            if pattern.search(text):
                 return severity, term
     return None, None
 
