@@ -173,6 +173,35 @@ def test_detect_security_signals_ignores_benign():
     assert detect_security_signals(metrics) == []
 
 
+def test_detect_security_signals_no_false_positive_on_rce_substring():
+    metrics = {"related_issues": {"x": [
+        {"number": 21, "title": "Add resource cleanup helper", "state": "open", "url": "u", "comments": 0},
+        {"number": 22, "title": "Refactor source map loader", "state": "open", "url": "u", "comments": 0},
+        {"number": 23, "title": "Enforce lint rules in commerce module", "state": "open", "url": "u", "comments": 0},
+    ]}}
+    assert detect_security_signals(metrics) == []
+
+
+def test_detect_security_signals_still_matches_rce_as_word():
+    metrics = {"related_issues": {"x": [
+        {"number": 24, "title": "Possible RCE in template parser", "state": "open", "url": "u", "comments": 1},
+    ]}}
+    signals = detect_security_signals(metrics)
+    assert len(signals) == 1
+    assert signals[0]["severity"] == "critical"
+    assert signals[0]["matched_term"] == "rce"
+
+
+def test_detect_security_signals_stem_terms_still_match():
+    metrics = {"related_issues": {"x": [
+        {"number": 25, "title": "Token exfiltration via webhook", "state": "open", "url": "u", "comments": 0},
+        {"number": 26, "title": "SQL injection vulnerability report", "state": "open", "url": "u", "comments": 0},
+    ]}}
+    by_number = {s["number"]: s for s in detect_security_signals(metrics)}
+    assert by_number[25]["severity"] == "high"
+    assert by_number[26]["severity"] == "medium"
+
+
 def test_detect_security_signals_matches_body_when_title_clean():
     metrics = {"related_issues": {"x": [
         {"number": 11, "title": "Improve logging output", "state": "open", "url": "u",
