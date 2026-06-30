@@ -202,6 +202,30 @@ def test_detect_security_signals_stem_terms_still_match():
     assert by_number[26]["severity"] == "medium"
 
 
+def test_detect_security_signals_matches_hyphenated_multiword():
+    metrics = {"related_issues": {"x": [
+        {"number": 27, "title": "Supply-chain attack via malicious npm package", "state": "open", "url": "u", "comments": 0},
+        {"number": 28, "title": "Remote-code-execution in template parser", "state": "open", "url": "u", "comments": 0},
+    ]}}
+    by_number = {s["number"]: s for s in detect_security_signals(metrics)}
+    assert by_number[27]["severity"] == "high"
+    assert by_number[27]["matched_term"] == "supply chain"
+    assert by_number[28]["severity"] == "critical"
+    assert by_number[28]["matched_term"] == "remote code execution"
+
+
+def test_detect_security_signals_matches_wrapped_multiword_in_body():
+    metrics = {"related_issues": {"x": [
+        {"number": 29, "title": "Investigate token handling", "state": "open", "url": "u", "comments": 0,
+         "body": "The exposed\nsecret was committed to the public repo."},
+    ]}}
+    signals = detect_security_signals(metrics)
+    assert len(signals) == 1
+    assert signals[0]["severity"] == "critical"
+    assert signals[0]["matched_term"] == "exposed secret"
+    assert signals[0]["matched_in"] == "body"
+
+
 def test_detect_security_signals_matches_body_when_title_clean():
     metrics = {"related_issues": {"x": [
         {"number": 11, "title": "Improve logging output", "state": "open", "url": "u",
