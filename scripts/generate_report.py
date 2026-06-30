@@ -136,8 +136,15 @@ _SEVERITY_EMOJI = {"critical": "🟥", "high": "🟧", "medium": "🟨"}
 # `\b` stops short acronyms (e.g. "rce") from matching inside unrelated words
 # ("source", "resource", "enforce", "commerce") while still allowing genuine
 # stems ("exfiltrat" → "exfiltration", "vulnerab" → "vulnerability") to match.
+# Internal spaces in multi-word terms are compiled to `[\s-]+`, so hyphenated or
+# line-wrapped variants ("supply-chain", "remote-code-execution", "api\nkey")
+# still match the same signal.
+def _compile_signal_term(term: str) -> "re.Pattern[str]":
+    return re.compile(r"\b" + r"[\s-]+".join(re.escape(part) for part in term.split(" ")))
+
+
 _COMPILED_SIGNAL_PATTERNS = [
-    (severity, [(term, re.compile(r"\b" + re.escape(term))) for term in terms])
+    (severity, [(term, _compile_signal_term(term)) for term in terms])
     for severity, terms in _SECURITY_SIGNAL_PATTERNS
 ]
 
