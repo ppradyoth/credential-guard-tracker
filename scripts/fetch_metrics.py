@@ -11,6 +11,7 @@ Collects data on:
 
 import json
 import os
+import time
 from datetime import datetime, timedelta
 from typing import Dict, Any, List
 
@@ -20,40 +21,50 @@ import requests
 class GitHubAPI:
     """GitHub REST API v3 wrapper."""
 
-    def __init__(self, token: str = None):
+    def __init__(self, token: str = None, max_retries: int = 3, backoff_base: float = 1.0):
         self.token = token or os.environ.get("GITHUB_TOKEN")
         self.session = requests.Session()
         if self.token:
             self.session.headers.update({"Authorization": f"token {self.token}"})
         self.base_url = "https://api.github.com"
+        self.max_retries = max_retries
+        self.backoff_base = backoff_base
+        self._sleep = time.sleep
+
+    def _get(self, url: str, params: Dict[str, Any] = None):
+        """GET with exponential-backoff retry on transient network/HTTP errors."""
+        last_exc = None
+        for attempt in range(self.max_retries + 1):
+            try:
+                resp = self.session.get(url, params=params)
+                resp.raise_for_status()
+                return resp
+            except requests.exceptions.RequestException as exc:
+                last_exc = exc
+                if attempt >= self.max_retries:
+                    break
+                self._sleep(self.backoff_base * (2 ** attempt))
+        raise last_exc
 
     def get_pr(self, owner: str, repo: str, pr_number: int) -> Dict[str, Any]:
         """Get pull request details."""
         url = f"{self.base_url}/repos/{owner}/{repo}/pulls/{pr_number}"
-        resp = self.session.get(url)
-        resp.raise_for_status()
-        return resp.json()
+        return self._get(url).json()
 
     def get_pr_comments(self, owner: str, repo: str, pr_number: int) -> List[Dict]:
         """Get PR comments."""
         url = f"{self.base_url}/repos/{owner}/{repo}/issues/{pr_number}/comments"
-        resp = self.session.get(url, params={"per_page": 100})
-        resp.raise_for_status()
-        return resp.json()
+        return self._get(url, params={"per_page": 100}).json()
 
     def get_pr_reviews(self, owner: str, repo: str, pr_number: int) -> List[Dict]:
         """Get PR reviews."""
         url = f"{self.base_url}/repos/{owner}/{repo}/pulls/{pr_number}/reviews"
-        resp = self.session.get(url)
-        resp.raise_for_status()
-        return resp.json()
+        return self._get(url).json()
 
     def get_repo(self, owner: str, repo: str) -> Dict[str, Any]:
         """Get repository details."""
         url = f"{self.base_url}/repos/{owner}/{repo}"
-        resp = self.session.get(url)
-        resp.raise_for_status()
-        return resp.json()
+        return self._get(url).json()
 
     def search_issues(self, query: str, repo: str = None) -> List[Dict]:
         """Search for issues/PRs."""
@@ -61,9 +72,7 @@ class GitHubAPI:
         q = query
         if repo:
             q += f" repo:{repo}"
-        resp = self.session.get(url, params={"q": q, "per_page": 30})
-        resp.raise_for_status()
-        return resp.json().get("items", [])
+        return self._get(url, params={"q": q, "per_page": 30}).json().get("items", [])
 
 
 def collect_pr_metrics(gh: GitHubAPI, owner: str, repo: str, pr_number: int) -> Dict:
@@ -139,6 +148,7 @@ def collect_related_issues(gh: GitHubAPI, repo_full_name: str, keywords: List[st
                 "url": issue["html_url"],
                 "created_at": issue["created_at"],
                 "comments": issue["comments"],
+                "body": (issue.get("body") or "")[:500],
             }
             for issue in issues[:5]  # Top 5 per keyword
         ]
