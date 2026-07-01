@@ -33,6 +33,9 @@ false-positiving on unrelated words such as `source`, `resource`, or `enforce`.
 Multi-word signals are **separator-flexible**: the space inside a term like
 `supply chain` or `remote code execution` matches hyphens and line wraps too, so
 `supply-chain` and a body-wrapped `exposed\nsecret` are caught all the same.
+Ranking is **actionable-first**: signals sort by severity, then open-before-closed
+(an open issue is still live and worth triaging), then by comment activity — so an
+open critical never sits below an already-closed one.
 Each signal is tagged with the matched term, where it matched, and its severity:
 
 ```text

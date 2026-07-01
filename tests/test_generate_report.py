@@ -154,6 +154,22 @@ def test_detect_security_signals_ranks_by_severity():
     assert signals[2]["severity"] == "medium"
 
 
+def test_detect_security_signals_open_ranks_before_closed_within_severity():
+    metrics = {
+        "related_issues": {
+            "secret": [
+                {"number": 1, "title": "Exposed secret in old logs", "state": "closed",
+                 "url": "u1", "comments": 9},
+                {"number": 2, "title": "Exposed secret in build output", "state": "open",
+                 "url": "u2", "comments": 0},
+            ],
+        }
+    }
+    signals = detect_security_signals(metrics)
+    assert [s["number"] for s in signals] == [2, 1]
+    assert all(s["severity"] == "critical" for s in signals)
+
+
 def test_detect_security_signals_dedupes_to_highest_severity():
     metrics = {
         "related_issues": {

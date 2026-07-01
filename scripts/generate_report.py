@@ -165,7 +165,8 @@ def detect_security_signals(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
     Each issue's title and body are matched against tiered keyword patterns;
     the issue is assigned the highest-severity tier matched across both, with
     the title preferred on ties. Returns a de-duplicated list sorted by
-    severity (critical first), then by comment activity.
+    severity (critical first), then open-before-closed (open issues are still
+    actionable), then by comment activity.
     """
     signals: Dict[int, Dict[str, Any]] = {}
 
@@ -199,7 +200,11 @@ def detect_security_signals(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
 
     return sorted(
         signals.values(),
-        key=lambda s: (_SEVERITY_RANK[s["severity"]], s["comments"]),
+        key=lambda s: (
+            _SEVERITY_RANK[s["severity"]],
+            0 if s["state"] == "closed" else 1,
+            s["comments"],
+        ),
         reverse=True,
     )
 
