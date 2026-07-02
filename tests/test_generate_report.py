@@ -11,6 +11,7 @@ from generate_report import (
     format_related_issues,
     format_repo_stats,
     format_security_signals,
+    format_signal_insight,
     generate_daily_report,
     generate_weekly_report,
 )
@@ -317,3 +318,29 @@ def test_daily_report_includes_security_signals(metrics):
     out = generate_daily_report(metrics)
     assert "## 🔐 Security Signals" in out
     assert "Security Signals:" in out
+
+
+def _sig(number, severity, state, comments=0):
+    return {"number": number, "title": f"issue {number}", "url": "u",
+            "state": state, "comments": comments, "severity": severity,
+            "matched_term": "rce"}
+
+
+def test_format_signal_insight_leads_with_open_actionable():
+    signals = [
+        _sig(1, "critical", "open"),
+        _sig(2, "high", "closed"),
+        _sig(3, "medium", "open"),
+    ]
+    out = format_signal_insight(signals)
+    assert out == "3 elevated signal(s) — 1 open critical/high need attention"
+
+
+def test_format_signal_insight_none_open_actionable():
+    signals = [_sig(1, "critical", "closed"), _sig(2, "medium", "open")]
+    out = format_signal_insight(signals)
+    assert out == "2 elevated signal(s) — none open critical/high"
+
+
+def test_format_signal_insight_empty():
+    assert format_signal_insight([]) == "0 elevated signal(s) detected in tracked issues"

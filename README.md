@@ -35,7 +35,10 @@ Multi-word signals are **separator-flexible**: the space inside a term like
 `supply-chain` and a body-wrapped `exposed\nsecret` are caught all the same.
 Ranking is **actionable-first**: signals sort by severity, then open-before-closed
 (an open issue is still live and worth triaging), then by comment activity — so an
-open critical never sits below an already-closed one.
+open critical never sits below an already-closed one. The **Key Insights** line
+leads with that actionable count — how many critical/high signals are still
+**open** — rather than a raw total, so the headline is what needs attention today
+(e.g. `3 elevated signal(s) — 1 open critical/high need attention`).
 Each signal is tagged with the matched term, where it matched, and its severity:
 
 ```text

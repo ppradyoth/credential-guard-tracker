@@ -246,6 +246,28 @@ def format_security_signals(signals: List[Dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
+def format_signal_insight(signals: List[Dict[str, Any]]) -> str:
+    """Build the Key Insights line, leading with the open critical/high count.
+
+    The headline number for triage is how many high-severity signals are still
+    open — those are what a maintainer must act on today, not the resolved ones.
+    """
+    total = len(signals)
+    if total == 0:
+        return "0 elevated signal(s) detected in tracked issues"
+
+    open_actionable = sum(
+        1
+        for s in signals
+        if s["state"] != "closed" and s["severity"] in ("critical", "high")
+    )
+    if open_actionable:
+        tail = f"{open_actionable} open critical/high need attention"
+    else:
+        tail = "none open critical/high"
+    return f"{total} elevated signal(s) — {tail}"
+
+
 def generate_daily_report(metrics: Dict[str, Any]) -> str:
     """Generate daily report markdown."""
     generated = metrics.get("generated_at", "").split("T")[0]
@@ -270,7 +292,7 @@ def generate_daily_report(metrics: Dict[str, Any]) -> str:
 - **PR Health:** {metrics['pr']['state'].upper()} with {metrics['pr']['comments_count']} comments
 - **Repository Momentum:** ⭐ {metrics['repo']['stars']:,} stars, 📊 {metrics['repo']['watchers']:,} watchers
 - **Ecosystem Activity:** {sum(len(v) for v in metrics['related_issues'].values())} related issues found
-- **Security Signals:** {len(detect_security_signals(metrics))} elevated signal(s) detected in tracked issues
+- **Security Signals:** {format_signal_insight(detect_security_signals(metrics))}
 - **Last Activity:** {metrics['repo']['updated_at'][:10]}
 
 ## 📌 Notes
