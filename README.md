@@ -25,9 +25,13 @@ Inspired by [Big Model Radar](https://github.com/gsscsd/big_model_radar), but fo
 
 Every daily report runs a keyword-tiered classifier over the tracked issues and
 surfaces the highest-risk ones first — so credential leaks and supply-chain risks
-don't get buried in routine noise. Both the **issue title and body** are scanned
-(highest severity across the two wins, title preferred on ties), so a risk buried
-in a long write-up is still caught. Keyword matching is **word-boundary anchored**,
+don't get buried in routine noise. An issue's **labels, title, and body** are all
+scanned (highest severity across the three wins; a maintainer-applied **label** is
+preferred over the title, and the title over the body, on ties), so a risk buried
+in a long write-up is still caught. Curated labels count even when the keyword
+tiers wouldn't: a bare `security`, `cve`, or `exploit` label is treated as a
+high-severity signal, while free-text still ignores the ubiquitous word "security"
+to avoid noise. Keyword matching is **word-boundary anchored**,
 so short acronyms like `rce` flag a genuine "Possible RCE in parser" without
 false-positiving on unrelated words such as `source`, `resource`, or `enforce`.
 Multi-word signals are **separator-flexible**: the space inside a term like

@@ -159,28 +159,66 @@ def _match_severity(text: str):
     return None, None
 
 
+# Maintainer-applied labels are curated signals: a bare `security` label carries
+# intent that free-text matching deliberately ignores (the word "security" is too
+# common in this ecosystem to key on in a body). These map label names the keyword
+# tiers miss to a severity; labels that already contain a tiered stem (e.g.
+# "vulnerability", "supply-chain") fall through to _match_severity.
+_SECURITY_LABELS = {
+    "security": "high",
+    "cve": "high",
+    "exploit": "high",
+    "0day": "high",
+}
+
+
+def _match_label_severity(labels):
+    """Return the highest-severity (severity, term) matched across issue labels."""
+    best_severity, best_term = None, None
+    for name in labels or []:
+        key = (name or "").strip().lower()
+        severity = _SECURITY_LABELS.get(key)
+        term = key
+        if severity is None:
+            severity, term = _match_severity(key)
+        if severity and (
+            best_severity is None
+            or _SEVERITY_RANK[severity] > _SEVERITY_RANK[best_severity]
+        ):
+            best_severity, best_term = severity, term
+    return best_severity, best_term
+
+
 def detect_security_signals(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Scan tracked issues for security-risk keywords and rank by severity.
 
-    Each issue's title and body are matched against tiered keyword patterns;
-    the issue is assigned the highest-severity tier matched across both, with
-    the title preferred on ties. Returns a de-duplicated list sorted by
-    severity (critical first), then open-before-closed (open issues are still
-    actionable), then by comment activity.
+    Each issue's labels, title, and body are matched against tiered keyword
+    patterns; the issue is assigned the highest-severity tier matched across the
+    three, with labels preferred over the title and the title over the body on
+    ties (a maintainer-applied label is the strongest signal). Returns a
+    de-duplicated list sorted by severity (critical first), then open-before-
+    closed (open issues are still actionable), then by comment activity.
     """
     signals: Dict[int, Dict[str, Any]] = {}
 
     for keyword, issues in (metrics.get("related_issues") or {}).items():
         for issue in issues:
+            label_sev, label_term = _match_label_severity(issue.get("labels"))
             title_sev, title_term = _match_severity(issue.get("title"))
             body_sev, body_term = _match_severity(issue.get("body"))
 
-            if title_sev and (not body_sev or _SEVERITY_RANK[title_sev] >= _SEVERITY_RANK[body_sev]):
-                matched_severity, matched_term, matched_in = title_sev, title_term, "title"
-            elif body_sev:
-                matched_severity, matched_term, matched_in = body_sev, body_term, "body"
-            else:
+            candidates = []
+            if label_sev:
+                candidates.append((_SEVERITY_RANK[label_sev], 3, label_sev, label_term, "label"))
+            if title_sev:
+                candidates.append((_SEVERITY_RANK[title_sev], 2, title_sev, title_term, "title"))
+            if body_sev:
+                candidates.append((_SEVERITY_RANK[body_sev], 1, body_sev, body_term, "body"))
+            if not candidates:
                 continue
+
+            candidates.sort(reverse=True)
+            _, _, matched_severity, matched_term, matched_in = candidates[0]
 
             number = issue.get("number")
             existing = signals.get(number)

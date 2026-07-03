@@ -231,6 +231,47 @@ def test_detect_security_signals_matches_hyphenated_multiword():
     assert by_number[28]["matched_term"] == "remote code execution"
 
 
+def test_detect_security_signals_matches_bare_security_label():
+    metrics = {"related_issues": {"x": [
+        {"number": 30, "title": "Investigate flaky checkout flow", "state": "open",
+         "url": "u", "comments": 2, "labels": ["security", "needs-triage"]},
+    ]}}
+    signals = detect_security_signals(metrics)
+    assert len(signals) == 1
+    assert signals[0]["severity"] == "high"
+    assert signals[0]["matched_in"] == "label"
+    assert signals[0]["matched_term"] == "security"
+
+
+def test_detect_security_signals_label_preferred_over_body_on_tie():
+    metrics = {"related_issues": {"x": [
+        {"number": 31, "title": "Refactor config loader", "state": "open", "url": "u",
+         "comments": 0, "labels": ["cve"], "body": "May relate to a credential path"},
+    ]}}
+    signals = detect_security_signals(metrics)
+    assert signals[0]["severity"] == "high"
+    assert signals[0]["matched_in"] == "label"
+
+
+def test_detect_security_signals_hyphenated_label_matches_keyword_tier():
+    metrics = {"related_issues": {"x": [
+        {"number": 32, "title": "Dependency bump", "state": "open", "url": "u",
+         "comments": 0, "labels": ["supply-chain"]},
+    ]}}
+    signals = detect_security_signals(metrics)
+    assert signals[0]["severity"] == "high"
+    assert signals[0]["matched_term"] == "supply chain"
+    assert signals[0]["matched_in"] == "label"
+
+
+def test_detect_security_signals_benign_labels_ignored():
+    metrics = {"related_issues": {"x": [
+        {"number": 33, "title": "Update docs", "state": "open", "url": "u",
+         "comments": 0, "labels": ["documentation", "good first issue"]},
+    ]}}
+    assert detect_security_signals(metrics) == []
+
+
 def test_detect_security_signals_matches_wrapped_multiword_in_body():
     metrics = {"related_issues": {"x": [
         {"number": 29, "title": "Investigate token handling", "state": "open", "url": "u", "comments": 0,

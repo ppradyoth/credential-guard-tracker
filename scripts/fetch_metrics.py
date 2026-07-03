@@ -149,6 +149,7 @@ def collect_related_issues(gh: GitHubAPI, repo_full_name: str, keywords: List[st
                 "created_at": issue["created_at"],
                 "comments": issue["comments"],
                 "body": (issue.get("body") or "")[:500],
+                "labels": [l.get("name", "") for l in (issue.get("labels") or [])],
             }
             for issue in issues[:5]  # Top 5 per keyword
         ]
