@@ -385,3 +385,71 @@ def test_format_signal_insight_none_open_actionable():
 
 def test_format_signal_insight_empty():
     assert format_signal_insight([]) == "0 elevated signal(s) detected in tracked issues"
+
+
+def test_detect_security_signals_flags_stale_open_high():
+    metrics = {"generated_at": "2026-06-25T00:00:00Z", "related_issues": {"x": [
+        {"number": 40, "title": "credential leak in build", "state": "open", "url": "u",
+         "comments": 1, "updated_at": "2026-06-01T00:00:00Z"},
+    ]}}
+    signals = detect_security_signals(metrics)
+    assert signals[0]["stale"] is True
+    assert signals[0]["age_days"] == 24
+
+
+def test_detect_security_signals_recent_high_not_stale():
+    metrics = {"generated_at": "2026-06-25T00:00:00Z", "related_issues": {"x": [
+        {"number": 41, "title": "credential leak in build", "state": "open", "url": "u",
+         "comments": 1, "updated_at": "2026-06-20T00:00:00Z"},
+    ]}}
+    signals = detect_security_signals(metrics)
+    assert signals[0]["stale"] is False
+
+
+def test_detect_security_signals_closed_never_stale():
+    metrics = {"generated_at": "2026-06-25T00:00:00Z", "related_issues": {"x": [
+        {"number": 42, "title": "credential leak in build", "state": "closed", "url": "u",
+         "comments": 1, "updated_at": "2026-01-01T00:00:00Z"},
+    ]}}
+    signals = detect_security_signals(metrics)
+    assert signals[0]["stale"] is False
+
+
+def test_detect_security_signals_medium_not_stale():
+    metrics = {"generated_at": "2026-06-25T00:00:00Z", "related_issues": {"x": [
+        {"number": 43, "title": "password handling cleanup", "state": "open", "url": "u",
+         "comments": 0, "updated_at": "2026-01-01T00:00:00Z"},
+    ]}}
+    signals = detect_security_signals(metrics)
+    assert signals[0]["severity"] == "medium"
+    assert signals[0]["stale"] is False
+
+
+def test_detect_security_signals_missing_updated_at_not_stale():
+    metrics = {"generated_at": "2026-06-25T00:00:00Z", "related_issues": {"x": [
+        {"number": 44, "title": "credential leak in build", "state": "open", "url": "u",
+         "comments": 0},
+    ]}}
+    signals = detect_security_signals(metrics)
+    assert signals[0]["age_days"] is None
+    assert signals[0]["stale"] is False
+
+
+def test_format_security_signals_marks_stale():
+    signals = [
+        {"number": 1, "title": "credential leak", "url": "u", "state": "open",
+         "comments": 2, "severity": "high", "matched_term": "credential leak",
+         "stale": True, "age_days": 30},
+    ]
+    out = format_security_signals(signals)
+    assert "⚠️ 1 stale" in out
+    assert "⚠️ stale 30d" in out
+
+
+def test_format_signal_insight_reports_stale_count():
+    signals = [
+        {**_sig(1, "critical", "open"), "stale": True, "age_days": 20},
+        {**_sig(2, "high", "open"), "stale": False, "age_days": 2},
+    ]
+    out = format_signal_insight(signals)
+    assert out == "2 elevated signal(s) — 2 open critical/high need attention (1 stale >14d)"

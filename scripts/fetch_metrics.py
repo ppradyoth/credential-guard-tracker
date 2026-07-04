@@ -147,6 +147,7 @@ def collect_related_issues(gh: GitHubAPI, repo_full_name: str, keywords: List[st
                 "state": issue["state"],
                 "url": issue["html_url"],
                 "created_at": issue["created_at"],
+                "updated_at": issue.get("updated_at", ""),
                 "comments": issue["comments"],
                 "body": (issue.get("body") or "")[:500],
                 "labels": [l.get("name", "") for l in (issue.get("labels") or [])],

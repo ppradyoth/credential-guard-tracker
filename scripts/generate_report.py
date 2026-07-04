@@ -132,6 +132,25 @@ _SECURITY_SIGNAL_PATTERNS = [
 _SEVERITY_RANK = {"critical": 3, "high": 2, "medium": 1}
 _SEVERITY_EMOJI = {"critical": "🟥", "high": "🟧", "medium": "🟨"}
 
+# An open critical/high issue with no activity for this many days is stale: the
+# risk is still live but nobody is working it, which is exactly what a maintainer
+# scanning the report wants surfaced above the noise of freshly-active issues.
+_STALE_DAYS = 14
+
+
+def _age_in_days(updated_at: str, reference: str):
+    """Whole days between an issue's last update and the report reference time.
+
+    Returns None when either timestamp is missing or unparseable, so callers can
+    treat unknown ages as "not stale" rather than guessing.
+    """
+    try:
+        updated = datetime.strptime((updated_at or "")[:10], "%Y-%m-%d")
+        ref = datetime.strptime((reference or "")[:10], "%Y-%m-%d")
+    except ValueError:
+        return None
+    return (ref - updated).days
+
 # Pre-compile each keyword as a word-boundary-anchored prefix match. Anchoring on
 # `\b` stops short acronyms (e.g. "rce") from matching inside unrelated words
 # ("source", "resource", "enforce", "commerce") while still allowing genuine
@@ -200,6 +219,7 @@ def detect_security_signals(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
     closed (open issues are still actionable), then by comment activity.
     """
     signals: Dict[int, Dict[str, Any]] = {}
+    reference = metrics.get("generated_at", "")
 
     for keyword, issues in (metrics.get("related_issues") or {}).items():
         for issue in issues:
@@ -225,15 +245,26 @@ def detect_security_signals(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
             if existing and _SEVERITY_RANK[existing["severity"]] >= _SEVERITY_RANK[matched_severity]:
                 continue
 
+            state = issue.get("state", "")
+            age_days = _age_in_days(issue.get("updated_at", ""), reference)
+            stale = (
+                state != "closed"
+                and matched_severity in ("critical", "high")
+                and age_days is not None
+                and age_days >= _STALE_DAYS
+            )
+
             signals[number] = {
                 "number": number,
                 "title": issue.get("title", ""),
                 "url": issue.get("url", ""),
-                "state": issue.get("state", ""),
+                "state": state,
                 "comments": issue.get("comments", 0),
                 "severity": matched_severity,
                 "matched_term": matched_term,
                 "matched_in": matched_in,
+                "age_days": age_days,
+                "stale": stale,
             }
 
     return sorted(
@@ -260,12 +291,16 @@ def format_security_signals(signals: List[Dict[str, Any]]) -> str:
     for signal in signals:
         counts[signal["severity"]] += 1
 
-    lines.append(
+    stale_total = sum(1 for s in signals if s.get("stale"))
+    header = (
         f"**{len(signals)} signal(s)** — "
         f"🟥 {counts['critical']} critical · "
         f"🟧 {counts['high']} high · "
         f"🟨 {counts['medium']} medium"
     )
+    if stale_total:
+        header += f" · ⚠️ {stale_total} stale"
+    lines.append(header)
     lines.append("")
 
     for signal in signals:
@@ -275,10 +310,13 @@ def format_security_signals(signals: List[Dict[str, Any]]) -> str:
             f"  {emoji} **{signal['severity'].upper()}** {state} "
             f"[#{signal['number']}]({signal['url']}) — {signal['title']}"
         )
-        lines.append(
+        detail = (
             f"     • matched `{signal['matched_term']}` in {signal.get('matched_in', 'title')} "
             f"| {signal['comments']} comments"
         )
+        if signal.get("stale"):
+            detail += f" | ⚠️ stale {signal['age_days']}d"
+        lines.append(detail)
     lines.append("")
 
     return "\n".join(lines)
@@ -300,7 +338,10 @@ def format_signal_insight(signals: List[Dict[str, Any]]) -> str:
         if s["state"] != "closed" and s["severity"] in ("critical", "high")
     )
     if open_actionable:
+        stale = sum(1 for s in signals if s.get("stale"))
         tail = f"{open_actionable} open critical/high need attention"
+        if stale:
+            tail += f" ({stale} stale >{_STALE_DAYS}d)"
     else:
         tail = "none open critical/high"
     return f"{total} elevated signal(s) — {tail}"
