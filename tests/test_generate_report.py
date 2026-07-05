@@ -453,3 +453,26 @@ def test_format_signal_insight_reports_stale_count():
     ]
     out = format_signal_insight(signals)
     assert out == "2 elevated signal(s) — 2 open critical/high need attention (1 stale >14d)"
+
+
+def test_detect_security_signals_stale_ranks_before_fresh_within_severity():
+    metrics = {"generated_at": "2026-06-25T00:00:00Z", "related_issues": {"x": [
+        {"number": 50, "title": "credential leak in app", "state": "open", "url": "u",
+         "comments": 9, "updated_at": "2026-06-24T00:00:00Z"},
+        {"number": 51, "title": "credential leak in build", "state": "open", "url": "u",
+         "comments": 0, "updated_at": "2026-05-01T00:00:00Z"},
+    ]}}
+    signals = detect_security_signals(metrics)
+    assert [s["number"] for s in signals] == [51, 50]
+    assert signals[0]["stale"] is True and signals[1]["stale"] is False
+
+
+def test_detect_security_signals_open_still_outranks_stale_closed():
+    metrics = {"generated_at": "2026-06-25T00:00:00Z", "related_issues": {"x": [
+        {"number": 60, "title": "credential leak in logs", "state": "closed", "url": "u",
+         "comments": 9, "updated_at": "2026-01-01T00:00:00Z"},
+        {"number": 61, "title": "credential leak in build", "state": "open", "url": "u",
+         "comments": 0, "updated_at": "2026-06-24T00:00:00Z"},
+    ]}}
+    signals = detect_security_signals(metrics)
+    assert [s["number"] for s in signals] == [61, 60]

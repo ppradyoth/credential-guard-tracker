@@ -216,7 +216,9 @@ def detect_security_signals(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
     three, with labels preferred over the title and the title over the body on
     ties (a maintainer-applied label is the strongest signal). Returns a
     de-duplicated list sorted by severity (critical first), then open-before-
-    closed (open issues are still actionable), then by comment activity.
+    closed (open issues are still actionable), then stale-before-fresh (a live
+    risk nobody is working outranks a freshly-active peer), then by comment
+    activity.
     """
     signals: Dict[int, Dict[str, Any]] = {}
     reference = metrics.get("generated_at", "")
@@ -272,6 +274,7 @@ def detect_security_signals(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
         key=lambda s: (
             _SEVERITY_RANK[s["severity"]],
             0 if s["state"] == "closed" else 1,
+            1 if s.get("stale") else 0,
             s["comments"],
         ),
         reverse=True,
