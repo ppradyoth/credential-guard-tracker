@@ -98,6 +98,9 @@ _SECURITY_SIGNAL_PATTERNS = [
             "private key leak",
             "remote code execution",
             "rce",
+            "backdoor",
+            "malicious package",
+            "malicious dependency",
         ],
     ),
     (
@@ -112,6 +115,11 @@ _SECURITY_SIGNAL_PATTERNS = [
             "exfiltrat",
             "cve-",
             "arbitrary code",
+            "typosquat",
+            "dependency confusion",
+            "package hijack",
+            "model poisoning",
+            "data poisoning",
         ],
     ),
     (

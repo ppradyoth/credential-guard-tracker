@@ -219,6 +219,24 @@ def test_detect_security_signals_stem_terms_still_match():
     assert by_number[26]["severity"] == "medium"
 
 
+def test_detect_security_signals_matches_supply_chain_attack_terms():
+    metrics = {"related_issues": {"x": [
+        {"number": 40, "title": "Backdoor found in model checkpoint", "state": "open", "url": "u", "comments": 0},
+        {"number": 41, "title": "Malicious package published to PyPI", "state": "open", "url": "u", "comments": 0},
+        {"number": 42, "title": "Typosquatting attack on popular npm library", "state": "open", "url": "u", "comments": 0},
+        {"number": 43, "title": "Dependency confusion in internal registry", "state": "open", "url": "u", "comments": 0},
+        {"number": 44, "title": "Data poisoning of the fine-tuning set", "state": "open", "url": "u", "comments": 0},
+    ]}}
+    by_number = {s["number"]: s for s in detect_security_signals(metrics)}
+    assert by_number[40]["severity"] == "critical"
+    assert by_number[40]["matched_term"] == "backdoor"
+    assert by_number[41]["severity"] == "critical"
+    assert by_number[42]["severity"] == "high"
+    assert by_number[42]["matched_term"] == "typosquat"
+    assert by_number[43]["severity"] == "high"
+    assert by_number[44]["severity"] == "high"
+
+
 def test_detect_security_signals_matches_hyphenated_multiword():
     metrics = {"related_issues": {"x": [
         {"number": 27, "title": "Supply-chain attack via malicious npm package", "state": "open", "url": "u", "comments": 0},

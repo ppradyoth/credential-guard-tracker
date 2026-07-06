@@ -31,7 +31,10 @@ preferred over the title, and the title over the body, on ties), so a risk burie
 in a long write-up is still caught. Curated labels count even when the keyword
 tiers wouldn't: a bare `security`, `cve`, or `exploit` label is treated as a
 high-severity signal, while free-text still ignores the ubiquitous word "security"
-to avoid noise. Keyword matching is **word-boundary anchored**,
+to avoid noise. Coverage spans the **AI supply-chain attack vocabulary** the
+tracker exists to catch — `typosquat`, `dependency confusion`, `malicious package`,
+`backdoor`, and `model`/`data poisoning` — alongside the classic secret-leak and
+RCE terms. Keyword matching is **word-boundary anchored**,
 so short acronyms like `rce` flag a genuine "Possible RCE in parser" without
 false-positiving on unrelated words such as `source`, `resource`, or `enforce`.
 Multi-word signals are **separator-flexible**: the space inside a term like
