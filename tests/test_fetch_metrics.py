@@ -180,3 +180,82 @@ def test_get_raises_after_exhausting_retries():
     with pytest.raises(requests.exceptions.ConnectionError):
         gh.get_repo("o", "r")
     assert gh.session.attempts == 3
+
+
+class HTTPErrorResp:
+    def __init__(self, status_code, headers=None, payload=None):
+        self.status_code = status_code
+        self.headers = headers or {}
+        self._payload = payload or {}
+
+    def raise_for_status(self):
+        err = requests.exceptions.HTTPError(f"{self.status_code}")
+        err.response = self
+        raise err
+
+    def json(self):
+        return self._payload
+
+
+class StatusSession:
+    def __init__(self, responses):
+        self.headers = {}
+        self.responses = list(responses)
+        self.attempts = 0
+
+    def get(self, url, params=None):
+        self.attempts += 1
+        return self.responses.pop(0)
+
+
+def test_get_does_not_retry_permanent_4xx():
+    gh = GitHubAPI(token="t", max_retries=3, backoff_base=0)
+    gh.session = StatusSession([HTTPErrorResp(404)])
+    slept = []
+    gh._sleep = lambda s: slept.append(s)
+    import pytest
+
+    with pytest.raises(requests.exceptions.HTTPError):
+        gh.get_repo("o", "r")
+    assert gh.session.attempts == 1
+    assert slept == []
+
+
+def test_get_retries_5xx_then_succeeds():
+    gh = GitHubAPI(token="t", max_retries=3, backoff_base=0)
+    gh.session = StatusSession([HTTPErrorResp(503), HTTPErrorResp(502), FakeResp({"ok": 1})])
+    gh._sleep = lambda s: None
+    assert gh.get_repo("o", "r") == {"ok": 1}
+    assert gh.session.attempts == 3
+
+
+def test_get_retries_rate_limited_403():
+    gh = GitHubAPI(token="t", max_retries=2, backoff_base=0)
+    gh.session = StatusSession(
+        [HTTPErrorResp(403, headers={"X-RateLimit-Remaining": "0"}), FakeResp({"ok": 2})]
+    )
+    gh._sleep = lambda s: None
+    assert gh.get_repo("o", "r") == {"ok": 2}
+    assert gh.session.attempts == 2
+
+
+def test_get_does_not_retry_plain_403():
+    gh = GitHubAPI(token="t", max_retries=3, backoff_base=0)
+    gh.session = StatusSession([HTTPErrorResp(403)])
+    gh._sleep = lambda s: None
+    import pytest
+
+    with pytest.raises(requests.exceptions.HTTPError):
+        gh.get_repo("o", "r")
+    assert gh.session.attempts == 1
+
+
+def test_get_honors_retry_after_header():
+    gh = GitHubAPI(token="t", max_retries=2, backoff_base=1.0)
+    gh.session = StatusSession(
+        [HTTPErrorResp(429, headers={"Retry-After": "7"}), FakeResp({"ok": 3})]
+    )
+    slept = []
+    gh._sleep = lambda s: slept.append(s)
+    assert gh.get_repo("o", "r") == {"ok": 3}
+    assert slept == [7.0]

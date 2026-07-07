@@ -80,6 +80,14 @@ useful as **AI supply-chain security tooling**, not just a metrics dashboard.
 | Plugin Adoption | GitHub stars, fork count | Daily |
 | Security Vulnerabilities | Related to credential leakage | Daily |
 
+### Fetch reliability
+
+GitHub API calls route through a retry helper that distinguishes transient from
+permanent failures. Connection errors, timeouts, HTTP 5xx, `429`, and
+rate-limited `403` responses are retried with exponential backoff (honoring a
+server `Retry-After` header when present); deterministic 4xx responses
+(`404`, `422`, `401`) fail fast instead of sleeping through the retry budget.
+
 ## Reports
 
 ### Daily Digest

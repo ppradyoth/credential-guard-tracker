@@ -31,14 +31,55 @@ class GitHubAPI:
         self.backoff_base = backoff_base
         self._sleep = time.sleep
 
+    @staticmethod
+    def _is_transient_status(resp) -> bool:
+        """Whether an HTTP error status is worth retrying.
+
+        Server errors (5xx) and rate limiting (429, or a 403 with the GitHub
+        ``X-RateLimit-Remaining: 0`` marker) are transient. Every other 4xx —
+        404 missing repo, 422 malformed query, 401 bad token — is deterministic:
+        retrying only burns the backoff budget and delays surfacing the error.
+        """
+        status = resp.status_code
+        if status >= 500 or status == 429:
+            return True
+        if status == 403 and resp.headers.get("X-RateLimit-Remaining") == "0":
+            return True
+        return False
+
+    def _retry_delay(self, attempt: int, resp=None) -> float:
+        """Backoff for this attempt, honoring a server ``Retry-After`` if given."""
+        if resp is not None:
+            retry_after = resp.headers.get("Retry-After")
+            if retry_after:
+                try:
+                    return float(retry_after)
+                except ValueError:
+                    pass
+        return self.backoff_base * (2 ** attempt)
+
     def _get(self, url: str, params: Dict[str, Any] = None):
-        """GET with exponential-backoff retry on transient network/HTTP errors."""
+        """GET with exponential-backoff retry on transient network/HTTP errors.
+
+        Connection errors and timeouts are always retried; HTTP errors are
+        retried only when :meth:`_is_transient_status` says so, so a permanent
+        4xx fails fast instead of sleeping through the full retry budget. A
+        rate-limit response's ``Retry-After`` header overrides the backoff.
+        """
         last_exc = None
         for attempt in range(self.max_retries + 1):
             try:
                 resp = self.session.get(url, params=params)
                 resp.raise_for_status()
                 return resp
+            except requests.exceptions.HTTPError as exc:
+                last_exc = exc
+                resp = exc.response
+                if resp is not None and not self._is_transient_status(resp):
+                    raise
+                if attempt >= self.max_retries:
+                    break
+                self._sleep(self._retry_delay(attempt, resp))
             except requests.exceptions.RequestException as exc:
                 last_exc = exc
                 if attempt >= self.max_retries:
