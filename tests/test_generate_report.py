@@ -7,6 +7,7 @@ from generate_report import (
     _format_delta,
     _weekly_highlights,
     detect_security_signals,
+    extract_cve_ids,
     format_pr_status,
     format_related_issues,
     format_repo_stats,
@@ -494,3 +495,52 @@ def test_detect_security_signals_open_still_outranks_stale_closed():
     ]}}
     signals = detect_security_signals(metrics)
     assert [s["number"] for s in signals] == [61, 60]
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("Fixes CVE-2024-1234 in parser", ["CVE-2024-1234"]),
+    ("cve-2023-99999 lowercase", ["CVE-2023-99999"]),
+    ("CVE-2024-0001 and CVE-2024-0002", ["CVE-2024-0001", "CVE-2024-0002"]),
+    ("dup CVE-2024-1111 then CVE-2024-1111", ["CVE-2024-1111"]),
+    ("no identifier here", []),
+    ("malformed CVE-24-1 ignored", []),
+    ("", []),
+])
+def test_extract_cve_ids(text, expected):
+    assert extract_cve_ids(text) == expected
+
+
+def test_extract_cve_ids_across_multiple_texts_preserves_first_seen_order():
+    assert extract_cve_ids("body mentions CVE-2024-2000", "title CVE-2024-1000") == [
+        "CVE-2024-2000",
+        "CVE-2024-1000",
+    ]
+
+
+def test_detect_security_signals_captures_cve_ids():
+    metrics = {"related_issues": {"cve": [
+        {"number": 70, "title": "RCE via CVE-2024-4321", "state": "open", "url": "u",
+         "comments": 3, "body": "also affects CVE-2024-9999"},
+    ]}}
+    signals = detect_security_signals(metrics)
+    assert signals[0]["cve_ids"] == ["CVE-2024-4321", "CVE-2024-9999"]
+
+
+def test_detect_security_signals_no_cve_ids_when_absent():
+    metrics = {"related_issues": {"secret": [
+        {"number": 71, "title": "Exposed secret in logs", "state": "open", "url": "u",
+         "comments": 1},
+    ]}}
+    signals = detect_security_signals(metrics)
+    assert signals[0]["cve_ids"] == []
+
+
+def test_format_security_signals_shows_cve_ids_and_count():
+    signals = [
+        {"number": 70, "title": "RCE issue", "url": "u", "state": "open", "comments": 3,
+         "severity": "high", "matched_term": "cve-", "matched_in": "title",
+         "cve_ids": ["CVE-2024-4321"], "stale": False, "age_days": 1},
+    ]
+    out = format_security_signals(signals)
+    assert "🆔 CVE-2024-4321" in out
+    assert "🆔 1 CVE(s)" in out

@@ -176,6 +176,26 @@ _COMPILED_SIGNAL_PATTERNS = [
 ]
 
 
+# A `cve-` keyword match tells a maintainer *that* a CVE is referenced, but the
+# actionable detail is *which* one. Extract the full identifier(s) so the report
+# surfaces `CVE-2024-1234` directly instead of a bare "matched cve-". The year is
+# four digits; the sequence is 4+ digits per the CVE ID format.
+_CVE_RE = re.compile(r"\bCVE-\d{4}-\d{4,}\b", re.IGNORECASE)
+
+
+def extract_cve_ids(*texts: str) -> List[str]:
+    """Return uppercased, de-duplicated CVE identifiers across the given texts.
+
+    Order is preserved by first appearance so the most prominently-referenced ID
+    (usually the title's) leads. Non-CVE text yields an empty list.
+    """
+    seen: Dict[str, None] = {}
+    for text in texts:
+        for match in _CVE_RE.findall(text or ""):
+            seen.setdefault(match.upper(), None)
+    return list(seen)
+
+
 def _match_severity(text: str):
     """Return the highest-severity (severity, term) matched in text, or (None, None)."""
     text = (text or "").lower()
@@ -256,6 +276,7 @@ def detect_security_signals(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
                 continue
 
             state = issue.get("state", "")
+            cve_ids = extract_cve_ids(issue.get("title", ""), issue.get("body", ""))
             age_days = _age_in_days(issue.get("updated_at", ""), reference)
             stale = (
                 state != "closed"
@@ -273,6 +294,7 @@ def detect_security_signals(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
                 "severity": matched_severity,
                 "matched_term": matched_term,
                 "matched_in": matched_in,
+                "cve_ids": cve_ids,
                 "age_days": age_days,
                 "stale": stale,
             }
@@ -311,6 +333,9 @@ def format_security_signals(signals: List[Dict[str, Any]]) -> str:
     )
     if stale_total:
         header += f" · ⚠️ {stale_total} stale"
+    tracked_cves = list(dict.fromkeys(c for s in signals for c in s.get("cve_ids", [])))
+    if tracked_cves:
+        header += f" · 🆔 {len(tracked_cves)} CVE(s)"
     lines.append(header)
     lines.append("")
 
@@ -325,6 +350,8 @@ def format_security_signals(signals: List[Dict[str, Any]]) -> str:
             f"     • matched `{signal['matched_term']}` in {signal.get('matched_in', 'title')} "
             f"| {signal['comments']} comments"
         )
+        if signal.get("cve_ids"):
+            detail += f" | 🆔 {', '.join(signal['cve_ids'])}"
         if signal.get("stale"):
             detail += f" | ⚠️ stale {signal['age_days']}d"
         lines.append(detail)

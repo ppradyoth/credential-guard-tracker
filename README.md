@@ -51,16 +51,20 @@ Open critical/high signals are also checked for **staleness**: if the issue has
 had no activity for over 14 days, the risk is still live but nobody is working it,
 so it's tagged `⚠️ stale Nd` and counted in both the section header and the Key
 Insights line — surfacing the quietly-rotting issues above the freshly-active
-noise. Each signal is tagged with the matched term, where it matched, and its
-severity:
+noise. Any **CVE identifiers** referenced in the issue title or body are extracted
+(`CVE-YYYY-NNNN…`, case-insensitive, de-duplicated) and surfaced inline as
+`🆔 CVE-2024-1234`, with a distinct-CVE count added to the section header — a
+`cve-` keyword tells you a CVE is referenced, but the extracted ID tells you
+*which* one to look up. Each signal is tagged with the matched term, where it
+matched, any CVE IDs, and its severity:
 
 ```text
 ## 🔐 Security Signals
 
-**3 signal(s)** — 🟥 0 critical · 🟧 1 high · 🟨 2 medium · ⚠️ 1 stale
+**3 signal(s)** — 🟥 0 critical · 🟧 1 high · 🟨 2 medium · ⚠️ 1 stale · 🆔 1 CVE(s)
 
   🟧 **HIGH** 🔵 [#222](https://github.com/anthropics/claude-code/issues/222) — Supply chain risk: unpinned action exfiltrates token
-     • matched `supply chain` in title | 12 comments | ⚠️ stale 21d
+     • matched `supply chain` in title | 12 comments | 🆔 CVE-2024-4321 | ⚠️ stale 21d
   🟨 **MEDIUM** 🔵 [#100](https://github.com/anthropics/claude-code/issues/100) — Refactor token cache
      • matched `credential` in body | 5 comments
 ```
