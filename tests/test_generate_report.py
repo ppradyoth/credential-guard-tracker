@@ -8,6 +8,7 @@ from generate_report import (
     _weekly_highlights,
     detect_security_signals,
     extract_cve_ids,
+    extract_ghsa_ids,
     format_pr_status,
     format_related_issues,
     format_repo_stats,
@@ -544,3 +545,46 @@ def test_format_security_signals_shows_cve_ids_and_count():
     out = format_security_signals(signals)
     assert "🆔 CVE-2024-4321" in out
     assert "🆔 1 CVE(s)" in out
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("See GHSA-j828-28rj-hfhp for details", ["GHSA-j828-28rj-hfhp"]),
+    ("upper GHSA-GPV5-7X3G-GHJV normalized", ["GHSA-gpv5-7x3g-ghjv"]),
+    ("GHSA-v2p6-4mp7-3r9v and GHSA-37ch-88jc-xwx2", ["GHSA-v2p6-4mp7-3r9v", "GHSA-37ch-88jc-xwx2"]),
+    ("dup GHSA-j828-28rj-hfhp then GHSA-j828-28rj-hfhp", ["GHSA-j828-28rj-hfhp"]),
+    ("no identifier here", []),
+    ("malformed GHSA-12-34-56 ignored", []),
+    ("GHSA-zzzz-1111-2222 bad charset ignored", []),
+    ("", []),
+])
+def test_extract_ghsa_ids(text, expected):
+    assert extract_ghsa_ids(text) == expected
+
+
+def test_extract_ghsa_ids_across_multiple_texts_preserves_first_seen_order():
+    assert extract_ghsa_ids("body GHSA-v2p6-4mp7-3r9v", "title GHSA-j828-28rj-hfhp") == [
+        "GHSA-v2p6-4mp7-3r9v",
+        "GHSA-j828-28rj-hfhp",
+    ]
+
+
+def test_detect_security_signals_captures_ghsa_ids_with_no_cve():
+    metrics = {"related_issues": {"advisory": [
+        {"number": 80, "title": "Advisory GHSA-j828-28rj-hfhp in dependency", "state": "open",
+         "url": "u", "comments": 2, "body": "no CVE assigned yet"},
+    ]}}
+    signals = detect_security_signals(metrics)
+    assert signals[0]["severity"] == "high"
+    assert signals[0]["ghsa_ids"] == ["GHSA-j828-28rj-hfhp"]
+    assert signals[0]["cve_ids"] == []
+
+
+def test_format_security_signals_shows_ghsa_ids_and_count():
+    signals = [
+        {"number": 80, "title": "Advisory issue", "url": "u", "state": "open", "comments": 2,
+         "severity": "high", "matched_term": "ghsa-", "matched_in": "title",
+         "cve_ids": [], "ghsa_ids": ["GHSA-j828-28rj-hfhp"], "stale": False, "age_days": 1},
+    ]
+    out = format_security_signals(signals)
+    assert "📛 GHSA-j828-28rj-hfhp" in out
+    assert "📛 1 GHSA(s)" in out

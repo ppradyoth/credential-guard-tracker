@@ -114,6 +114,7 @@ _SECURITY_SIGNAL_PATTERNS = [
             "supply chain",
             "exfiltrat",
             "cve-",
+            "ghsa-",
             "arbitrary code",
             "typosquat",
             "dependency confusion",
@@ -193,6 +194,29 @@ def extract_cve_ids(*texts: str) -> List[str]:
     for text in texts:
         for match in _CVE_RE.findall(text or ""):
             seen.setdefault(match.upper(), None)
+    return list(seen)
+
+
+# GitHub Security Advisory IDs identify advisories that often have no CVE yet —
+# the common case for PyPI/npm package vulnerabilities surfaced through GitHub.
+# The syntax is a fixed `GHSA` prefix plus three hyphen-separated groups of four
+# characters drawn from the base32-style set `23456789cfghjmpqrvwx` (canonically
+# lowercase). Extracting the full ID gives a maintainer the exact advisory to
+# open, the same way `extract_cve_ids` does for CVEs.
+_GHSA_RE = re.compile(r"\bGHSA(?:-[23456789cfghjmpqrvwx]{4}){3}\b", re.IGNORECASE)
+
+
+def extract_ghsa_ids(*texts: str) -> List[str]:
+    """Return canonicalized, de-duplicated GHSA identifiers across the texts.
+
+    Canonical form is an uppercase `GHSA` prefix with a lowercase body. Order is
+    preserved by first appearance. Non-GHSA text yields an empty list.
+    """
+    seen: Dict[str, None] = {}
+    for text in texts:
+        for match in _GHSA_RE.findall(text or ""):
+            prefix, _, body = match.partition("-")
+            seen.setdefault(f"{prefix.upper()}-{body.lower()}", None)
     return list(seen)
 
 
@@ -277,6 +301,7 @@ def detect_security_signals(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
 
             state = issue.get("state", "")
             cve_ids = extract_cve_ids(issue.get("title", ""), issue.get("body", ""))
+            ghsa_ids = extract_ghsa_ids(issue.get("title", ""), issue.get("body", ""))
             age_days = _age_in_days(issue.get("updated_at", ""), reference)
             stale = (
                 state != "closed"
@@ -295,6 +320,7 @@ def detect_security_signals(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
                 "matched_term": matched_term,
                 "matched_in": matched_in,
                 "cve_ids": cve_ids,
+                "ghsa_ids": ghsa_ids,
                 "age_days": age_days,
                 "stale": stale,
             }
@@ -336,6 +362,9 @@ def format_security_signals(signals: List[Dict[str, Any]]) -> str:
     tracked_cves = list(dict.fromkeys(c for s in signals for c in s.get("cve_ids", [])))
     if tracked_cves:
         header += f" · 🆔 {len(tracked_cves)} CVE(s)"
+    tracked_ghsa = list(dict.fromkeys(g for s in signals for g in s.get("ghsa_ids", [])))
+    if tracked_ghsa:
+        header += f" · 📛 {len(tracked_ghsa)} GHSA(s)"
     lines.append(header)
     lines.append("")
 
@@ -352,6 +381,8 @@ def format_security_signals(signals: List[Dict[str, Any]]) -> str:
         )
         if signal.get("cve_ids"):
             detail += f" | 🆔 {', '.join(signal['cve_ids'])}"
+        if signal.get("ghsa_ids"):
+            detail += f" | 📛 {', '.join(signal['ghsa_ids'])}"
         if signal.get("stale"):
             detail += f" | ⚠️ stale {signal['age_days']}d"
         lines.append(detail)
