@@ -220,6 +220,26 @@ def extract_ghsa_ids(*texts: str) -> List[str]:
     return list(seen)
 
 
+# A CWE (Common Weakness Enumeration) identifier names the *class* of flaw — e.g.
+# CWE-798 "Use of Hard-coded Credentials" or CWE-522 "Insufficiently Protected
+# Credentials", both squarely on-theme for this tracker. Advisories and issues
+# cite them alongside or instead of a CVE, so surfacing the weakness class gives a
+# maintainer the "what kind of bug" at a glance. IDs are `CWE-` plus 1–5 digits.
+_CWE_RE = re.compile(r"\bCWE-\d{1,5}\b", re.IGNORECASE)
+
+
+def extract_cwe_ids(*texts: str) -> List[str]:
+    """Return uppercased, de-duplicated CWE identifiers across the given texts.
+
+    Order is preserved by first appearance. Non-CWE text yields an empty list.
+    """
+    seen: Dict[str, None] = {}
+    for text in texts:
+        for match in _CWE_RE.findall(text or ""):
+            seen.setdefault(match.upper(), None)
+    return list(seen)
+
+
 def _match_severity(text: str):
     """Return the highest-severity (severity, term) matched in text, or (None, None)."""
     text = (text or "").lower()
@@ -302,6 +322,7 @@ def detect_security_signals(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
             state = issue.get("state", "")
             cve_ids = extract_cve_ids(issue.get("title", ""), issue.get("body", ""))
             ghsa_ids = extract_ghsa_ids(issue.get("title", ""), issue.get("body", ""))
+            cwe_ids = extract_cwe_ids(issue.get("title", ""), issue.get("body", ""))
             age_days = _age_in_days(issue.get("updated_at", ""), reference)
             stale = (
                 state != "closed"
@@ -321,6 +342,7 @@ def detect_security_signals(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
                 "matched_in": matched_in,
                 "cve_ids": cve_ids,
                 "ghsa_ids": ghsa_ids,
+                "cwe_ids": cwe_ids,
                 "age_days": age_days,
                 "stale": stale,
             }
@@ -365,6 +387,9 @@ def format_security_signals(signals: List[Dict[str, Any]]) -> str:
     tracked_ghsa = list(dict.fromkeys(g for s in signals for g in s.get("ghsa_ids", [])))
     if tracked_ghsa:
         header += f" · 📛 {len(tracked_ghsa)} GHSA(s)"
+    tracked_cwe = list(dict.fromkeys(w for s in signals for w in s.get("cwe_ids", [])))
+    if tracked_cwe:
+        header += f" · 🧬 {len(tracked_cwe)} CWE(s)"
     lines.append(header)
     lines.append("")
 
@@ -383,6 +408,8 @@ def format_security_signals(signals: List[Dict[str, Any]]) -> str:
             detail += f" | 🆔 {', '.join(signal['cve_ids'])}"
         if signal.get("ghsa_ids"):
             detail += f" | 📛 {', '.join(signal['ghsa_ids'])}"
+        if signal.get("cwe_ids"):
+            detail += f" | 🧬 {', '.join(signal['cwe_ids'])}"
         if signal.get("stale"):
             detail += f" | ⚠️ stale {signal['age_days']}d"
         lines.append(detail)

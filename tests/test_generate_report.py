@@ -9,6 +9,7 @@ from generate_report import (
     detect_security_signals,
     extract_cve_ids,
     extract_ghsa_ids,
+    extract_cwe_ids,
     format_pr_status,
     format_related_issues,
     format_repo_stats,
@@ -588,3 +589,44 @@ def test_format_security_signals_shows_ghsa_ids_and_count():
     out = format_security_signals(signals)
     assert "📛 GHSA-j828-28rj-hfhp" in out
     assert "📛 1 GHSA(s)" in out
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("Hardcoded creds CWE-798", ["CWE-798"]),
+    ("cwe-259 lowercase", ["CWE-259"]),
+    ("CWE-79 and CWE-89", ["CWE-79", "CWE-89"]),
+    ("dup CWE-522 then CWE-522", ["CWE-522"]),
+    ("no identifier here", []),
+    ("bare CWE- ignored", []),
+    ("embedded MCWE-12 and CWEabc ignored", []),
+    ("", []),
+])
+def test_extract_cwe_ids(text, expected):
+    assert extract_cwe_ids(text) == expected
+
+
+def test_extract_cwe_ids_across_multiple_texts_preserves_first_seen_order():
+    assert extract_cwe_ids("body CWE-522", "title CWE-798") == [
+        "CWE-522",
+        "CWE-798",
+    ]
+
+
+def test_detect_security_signals_captures_cwe_ids():
+    metrics = {"related_issues": {"credential": [
+        {"number": 90, "title": "Hardcoded credential CWE-798", "state": "open",
+         "url": "u", "comments": 4, "body": "also CWE-522 insufficiently protected"},
+    ]}}
+    signals = detect_security_signals(metrics)
+    assert signals[0]["cwe_ids"] == ["CWE-798", "CWE-522"]
+
+
+def test_format_security_signals_shows_cwe_ids_and_count():
+    signals = [
+        {"number": 90, "title": "Credential issue", "url": "u", "state": "open", "comments": 4,
+         "severity": "high", "matched_term": "credential", "matched_in": "title",
+         "cve_ids": [], "ghsa_ids": [], "cwe_ids": ["CWE-798"], "stale": False, "age_days": 1},
+    ]
+    out = format_security_signals(signals)
+    assert "🧬 CWE-798" in out
+    assert "🧬 1 CWE(s)" in out
