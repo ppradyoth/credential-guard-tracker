@@ -101,6 +101,7 @@ _SECURITY_SIGNAL_PATTERNS = [
             "backdoor",
             "malicious package",
             "malicious dependency",
+            "mal-",
         ],
     ),
     (
@@ -240,6 +241,27 @@ def extract_cwe_ids(*texts: str) -> List[str]:
     return list(seen)
 
 
+# An OSV `MAL-YYYY-N` identifier names a *malicious* package advisory (a typosquat,
+# backdoor, or hijacked dependency) rather than a vulnerability in benign code —
+# the single most on-theme signal for an AI supply-chain tracker. Malicious
+# packages are often published with a MAL advisory (frequently aliased to a PYSEC
+# ID) and no CVE at all, so keying only on `cve-` missed them. The format is a
+# fixed `MAL-` prefix, a four-digit year, and a numeric sequence.
+_MAL_RE = re.compile(r"\bMAL-\d{4}-\d+\b", re.IGNORECASE)
+
+
+def extract_mal_ids(*texts: str) -> List[str]:
+    """Return uppercased, de-duplicated OSV MAL advisory IDs across the texts.
+
+    Order is preserved by first appearance. Non-MAL text yields an empty list.
+    """
+    seen: Dict[str, None] = {}
+    for text in texts:
+        for match in _MAL_RE.findall(text or ""):
+            seen.setdefault(match.upper(), None)
+    return list(seen)
+
+
 def _match_severity(text: str):
     """Return the highest-severity (severity, term) matched in text, or (None, None)."""
     text = (text or "").lower()
@@ -323,6 +345,7 @@ def detect_security_signals(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
             cve_ids = extract_cve_ids(issue.get("title", ""), issue.get("body", ""))
             ghsa_ids = extract_ghsa_ids(issue.get("title", ""), issue.get("body", ""))
             cwe_ids = extract_cwe_ids(issue.get("title", ""), issue.get("body", ""))
+            mal_ids = extract_mal_ids(issue.get("title", ""), issue.get("body", ""))
             age_days = _age_in_days(issue.get("updated_at", ""), reference)
             stale = (
                 state != "closed"
@@ -343,6 +366,7 @@ def detect_security_signals(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
                 "cve_ids": cve_ids,
                 "ghsa_ids": ghsa_ids,
                 "cwe_ids": cwe_ids,
+                "mal_ids": mal_ids,
                 "age_days": age_days,
                 "stale": stale,
             }
@@ -390,6 +414,9 @@ def format_security_signals(signals: List[Dict[str, Any]]) -> str:
     tracked_cwe = list(dict.fromkeys(w for s in signals for w in s.get("cwe_ids", [])))
     if tracked_cwe:
         header += f" · 🧬 {len(tracked_cwe)} CWE(s)"
+    tracked_mal = list(dict.fromkeys(m for s in signals for m in s.get("mal_ids", [])))
+    if tracked_mal:
+        header += f" · 🦠 {len(tracked_mal)} MAL(s)"
     lines.append(header)
     lines.append("")
 
@@ -410,6 +437,8 @@ def format_security_signals(signals: List[Dict[str, Any]]) -> str:
             detail += f" | 📛 {', '.join(signal['ghsa_ids'])}"
         if signal.get("cwe_ids"):
             detail += f" | 🧬 {', '.join(signal['cwe_ids'])}"
+        if signal.get("mal_ids"):
+            detail += f" | 🦠 {', '.join(signal['mal_ids'])}"
         if signal.get("stale"):
             detail += f" | ⚠️ stale {signal['age_days']}d"
         lines.append(detail)

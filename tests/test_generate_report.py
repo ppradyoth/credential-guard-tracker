@@ -10,6 +10,7 @@ from generate_report import (
     extract_cve_ids,
     extract_ghsa_ids,
     extract_cwe_ids,
+    extract_mal_ids,
     format_pr_status,
     format_related_issues,
     format_repo_stats,
@@ -630,3 +631,55 @@ def test_format_security_signals_shows_cwe_ids_and_count():
     out = format_security_signals(signals)
     assert "🧬 CWE-798" in out
     assert "🧬 1 CWE(s)" in out
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("Reported as MAL-2026-2144", ["MAL-2026-2144"]),
+    ("mal-2025-7 lowercase", ["MAL-2025-7"]),
+    ("MAL-2026-2144 aliases MAL-2026-9", ["MAL-2026-2144", "MAL-2026-9"]),
+    ("dup MAL-2026-2144 then MAL-2026-2144", ["MAL-2026-2144"]),
+    ("no identifier here", []),
+    ("bare MAL-2026 without sequence ignored", []),
+    ("malware and malformed and malicious ignored", []),
+    ("", []),
+])
+def test_extract_mal_ids(text, expected):
+    assert extract_mal_ids(text) == expected
+
+
+def test_extract_mal_ids_across_multiple_texts_preserves_first_seen_order():
+    assert extract_mal_ids("body MAL-2026-9", "title MAL-2025-1") == [
+        "MAL-2026-9",
+        "MAL-2025-1",
+    ]
+
+
+def test_detect_security_signals_captures_mal_ids_with_no_other_keyword():
+    metrics = {"related_issues": {"dependency": [
+        {"number": 91, "title": "Advisory MAL-2026-2144 filed", "state": "open",
+         "url": "u", "comments": 2, "body": "flagged in the OSV feed"},
+    ]}}
+    signals = detect_security_signals(metrics)
+    assert signals[0]["severity"] == "critical"
+    assert signals[0]["mal_ids"] == ["MAL-2026-2144"]
+
+
+def test_detect_security_signals_malware_word_is_not_a_mal_advisory():
+    metrics = {"related_issues": {"dependency": [
+        {"number": 92, "title": "malware scanner false positive", "state": "open",
+         "url": "u", "comments": 1, "body": "the malformed manifest triggered it"},
+    ]}}
+    signals = detect_security_signals(metrics)
+    assert signals == []
+
+
+def test_format_security_signals_shows_mal_ids_and_count():
+    signals = [
+        {"number": 91, "title": "Malicious dependency", "url": "u", "state": "open", "comments": 2,
+         "severity": "critical", "matched_term": "mal-", "matched_in": "title",
+         "cve_ids": [], "ghsa_ids": [], "cwe_ids": [], "mal_ids": ["MAL-2026-2144"],
+         "stale": False, "age_days": 1},
+    ]
+    out = format_security_signals(signals)
+    assert "🦠 MAL-2026-2144" in out
+    assert "🦠 1 MAL(s)" in out
