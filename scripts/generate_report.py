@@ -116,6 +116,7 @@ _SECURITY_SIGNAL_PATTERNS = [
             "exfiltrat",
             "cve-",
             "ghsa-",
+            "pysec-",
             "arbitrary code",
             "typosquat",
             "dependency confusion",
@@ -262,6 +263,28 @@ def extract_mal_ids(*texts: str) -> List[str]:
     return list(seen)
 
 
+# A `PYSEC-YYYY-N` identifier is the PyPA advisory-database ID for a Python
+# package vulnerability — the direct namespace for the PyPI supply chain that
+# underpins virtually every ML/AI toolchain. Many PyPI advisories carry a PYSEC
+# ID with no CVE (the same root issue may surface as a GHSA on GitHub and a PYSEC
+# in PyPA), so keying only on `cve-`/`ghsa-` missed the Python-native case. The
+# format mirrors MAL: a fixed `PYSEC-` prefix, a four-digit year, and a numeric
+# sequence (verified against OSV, e.g. PYSEC-2026-188, PYSEC-2026-3).
+_PYSEC_RE = re.compile(r"\bPYSEC-\d{4}-\d+\b", re.IGNORECASE)
+
+
+def extract_pysec_ids(*texts: str) -> List[str]:
+    """Return uppercased, de-duplicated PyPA PYSEC advisory IDs across the texts.
+
+    Order is preserved by first appearance. Non-PYSEC text yields an empty list.
+    """
+    seen: Dict[str, None] = {}
+    for text in texts:
+        for match in _PYSEC_RE.findall(text or ""):
+            seen.setdefault(match.upper(), None)
+    return list(seen)
+
+
 def _match_severity(text: str):
     """Return the highest-severity (severity, term) matched in text, or (None, None)."""
     text = (text or "").lower()
@@ -346,6 +369,7 @@ def detect_security_signals(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
             ghsa_ids = extract_ghsa_ids(issue.get("title", ""), issue.get("body", ""))
             cwe_ids = extract_cwe_ids(issue.get("title", ""), issue.get("body", ""))
             mal_ids = extract_mal_ids(issue.get("title", ""), issue.get("body", ""))
+            pysec_ids = extract_pysec_ids(issue.get("title", ""), issue.get("body", ""))
             age_days = _age_in_days(issue.get("updated_at", ""), reference)
             stale = (
                 state != "closed"
@@ -367,6 +391,7 @@ def detect_security_signals(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
                 "ghsa_ids": ghsa_ids,
                 "cwe_ids": cwe_ids,
                 "mal_ids": mal_ids,
+                "pysec_ids": pysec_ids,
                 "age_days": age_days,
                 "stale": stale,
             }
@@ -417,6 +442,9 @@ def format_security_signals(signals: List[Dict[str, Any]]) -> str:
     tracked_mal = list(dict.fromkeys(m for s in signals for m in s.get("mal_ids", [])))
     if tracked_mal:
         header += f" · 🦠 {len(tracked_mal)} MAL(s)"
+    tracked_pysec = list(dict.fromkeys(p for s in signals for p in s.get("pysec_ids", [])))
+    if tracked_pysec:
+        header += f" · 🐍 {len(tracked_pysec)} PYSEC(s)"
     lines.append(header)
     lines.append("")
 
@@ -439,6 +467,8 @@ def format_security_signals(signals: List[Dict[str, Any]]) -> str:
             detail += f" | 🧬 {', '.join(signal['cwe_ids'])}"
         if signal.get("mal_ids"):
             detail += f" | 🦠 {', '.join(signal['mal_ids'])}"
+        if signal.get("pysec_ids"):
+            detail += f" | 🐍 {', '.join(signal['pysec_ids'])}"
         if signal.get("stale"):
             detail += f" | ⚠️ stale {signal['age_days']}d"
         lines.append(detail)

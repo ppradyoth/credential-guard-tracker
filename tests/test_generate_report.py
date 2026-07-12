@@ -11,6 +11,7 @@ from generate_report import (
     extract_ghsa_ids,
     extract_cwe_ids,
     extract_mal_ids,
+    extract_pysec_ids,
     format_pr_status,
     format_related_issues,
     format_repo_stats,
@@ -683,3 +684,45 @@ def test_format_security_signals_shows_mal_ids_and_count():
     out = format_security_signals(signals)
     assert "🦠 MAL-2026-2144" in out
     assert "🦠 1 MAL(s)" in out
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("Advisory PYSEC-2026-188 filed", ["PYSEC-2026-188"]),
+    ("pysec-2026-3 lowercase", ["PYSEC-2026-3"]),
+    ("PYSEC-2026-188 aliases PYSEC-2026-3", ["PYSEC-2026-188", "PYSEC-2026-3"]),
+    ("dup PYSEC-2026-87 then PYSEC-2026-87", ["PYSEC-2026-87"]),
+    ("no identifier here", []),
+    ("bare PYSEC-2026 without sequence ignored", []),
+    ("", []),
+])
+def test_extract_pysec_ids(text, expected):
+    assert extract_pysec_ids(text) == expected
+
+
+def test_extract_pysec_ids_across_multiple_texts_preserves_first_seen_order():
+    assert extract_pysec_ids("body PYSEC-2026-9", "title PYSEC-2025-1") == [
+        "PYSEC-2026-9",
+        "PYSEC-2025-1",
+    ]
+
+
+def test_detect_security_signals_captures_pysec_ids_with_no_other_keyword():
+    metrics = {"related_issues": {"dependency": [
+        {"number": 93, "title": "Advisory PYSEC-2026-188 filed", "state": "open",
+         "url": "u", "comments": 2, "body": "surfaced in the OSV feed"},
+    ]}}
+    signals = detect_security_signals(metrics)
+    assert signals[0]["severity"] == "high"
+    assert signals[0]["pysec_ids"] == ["PYSEC-2026-188"]
+
+
+def test_format_security_signals_shows_pysec_ids_and_count():
+    signals = [
+        {"number": 93, "title": "PyPI advisory", "url": "u", "state": "open", "comments": 2,
+         "severity": "high", "matched_term": "pysec-", "matched_in": "title",
+         "cve_ids": [], "ghsa_ids": [], "cwe_ids": [], "mal_ids": [],
+         "pysec_ids": ["PYSEC-2026-188"], "stale": False, "age_days": 1},
+    ]
+    out = format_security_signals(signals)
+    assert "🐍 PYSEC-2026-188" in out
+    assert "🐍 1 PYSEC(s)" in out
