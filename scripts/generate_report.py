@@ -117,6 +117,7 @@ _SECURITY_SIGNAL_PATTERNS = [
             "cve-",
             "ghsa-",
             "pysec-",
+            "rustsec-",
             "arbitrary code",
             "typosquat",
             "dependency confusion",
@@ -285,6 +286,29 @@ def extract_pysec_ids(*texts: str) -> List[str]:
     return list(seen)
 
 
+# A `RUSTSEC-YYYY-NNNN` identifier is the RustSec advisory-database ID for a
+# vulnerability in a crate published through crates.io — directly on-theme for an
+# AI supply-chain tracker, since the Rust ecosystem now underpins core ML tooling
+# (HuggingFace `safetensors`, `tokenizers`, and the `candle` inference framework
+# are all Rust crates). RustSec advisories frequently predate or never receive a
+# CVE, so keying only on `cve-`/`ghsa-` missed the Rust-native case. The format is
+# a fixed `RUSTSEC-` prefix, a four-digit year, and a four-digit zero-padded
+# sequence (verified against rustsec.org, e.g. RUSTSEC-2021-0125, RUSTSEC-2018-0001).
+_RUSTSEC_RE = re.compile(r"\bRUSTSEC-\d{4}-\d{4}\b", re.IGNORECASE)
+
+
+def extract_rustsec_ids(*texts: str) -> List[str]:
+    """Return uppercased, de-duplicated RustSec advisory IDs across the texts.
+
+    Order is preserved by first appearance. Non-RUSTSEC text yields an empty list.
+    """
+    seen: Dict[str, None] = {}
+    for text in texts:
+        for match in _RUSTSEC_RE.findall(text or ""):
+            seen.setdefault(match.upper(), None)
+    return list(seen)
+
+
 def _match_severity(text: str):
     """Return the highest-severity (severity, term) matched in text, or (None, None)."""
     text = (text or "").lower()
@@ -370,6 +394,7 @@ def detect_security_signals(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
             cwe_ids = extract_cwe_ids(issue.get("title", ""), issue.get("body", ""))
             mal_ids = extract_mal_ids(issue.get("title", ""), issue.get("body", ""))
             pysec_ids = extract_pysec_ids(issue.get("title", ""), issue.get("body", ""))
+            rustsec_ids = extract_rustsec_ids(issue.get("title", ""), issue.get("body", ""))
             age_days = _age_in_days(issue.get("updated_at", ""), reference)
             stale = (
                 state != "closed"
@@ -392,6 +417,7 @@ def detect_security_signals(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
                 "cwe_ids": cwe_ids,
                 "mal_ids": mal_ids,
                 "pysec_ids": pysec_ids,
+                "rustsec_ids": rustsec_ids,
                 "age_days": age_days,
                 "stale": stale,
             }
@@ -445,6 +471,9 @@ def format_security_signals(signals: List[Dict[str, Any]]) -> str:
     tracked_pysec = list(dict.fromkeys(p for s in signals for p in s.get("pysec_ids", [])))
     if tracked_pysec:
         header += f" · 🐍 {len(tracked_pysec)} PYSEC(s)"
+    tracked_rustsec = list(dict.fromkeys(r for s in signals for r in s.get("rustsec_ids", [])))
+    if tracked_rustsec:
+        header += f" · 🦀 {len(tracked_rustsec)} RUSTSEC(s)"
     lines.append(header)
     lines.append("")
 
@@ -469,6 +498,8 @@ def format_security_signals(signals: List[Dict[str, Any]]) -> str:
             detail += f" | 🦠 {', '.join(signal['mal_ids'])}"
         if signal.get("pysec_ids"):
             detail += f" | 🐍 {', '.join(signal['pysec_ids'])}"
+        if signal.get("rustsec_ids"):
+            detail += f" | 🦀 {', '.join(signal['rustsec_ids'])}"
         if signal.get("stale"):
             detail += f" | ⚠️ stale {signal['age_days']}d"
         lines.append(detail)

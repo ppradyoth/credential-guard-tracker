@@ -12,6 +12,7 @@ from generate_report import (
     extract_cwe_ids,
     extract_mal_ids,
     extract_pysec_ids,
+    extract_rustsec_ids,
     format_pr_status,
     format_related_issues,
     format_repo_stats,
@@ -726,3 +727,46 @@ def test_format_security_signals_shows_pysec_ids_and_count():
     out = format_security_signals(signals)
     assert "🐍 PYSEC-2026-188" in out
     assert "🐍 1 PYSEC(s)" in out
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("Advisory RUSTSEC-2021-0125 filed", ["RUSTSEC-2021-0125"]),
+    ("rustsec-2018-0001 lowercase", ["RUSTSEC-2018-0001"]),
+    ("RUSTSEC-2021-0125 and RUSTSEC-2018-0001", ["RUSTSEC-2021-0125", "RUSTSEC-2018-0001"]),
+    ("dup RUSTSEC-2021-0125 then RUSTSEC-2021-0125", ["RUSTSEC-2021-0125"]),
+    ("no identifier here", []),
+    ("bare RUSTSEC-2021 without sequence ignored", []),
+    ("short RUSTSEC-2021-12 ignored", []),
+    ("", []),
+])
+def test_extract_rustsec_ids(text, expected):
+    assert extract_rustsec_ids(text) == expected
+
+
+def test_extract_rustsec_ids_across_multiple_texts_preserves_first_seen_order():
+    assert extract_rustsec_ids("body RUSTSEC-2026-0009", "title RUSTSEC-2025-0001") == [
+        "RUSTSEC-2026-0009",
+        "RUSTSEC-2025-0001",
+    ]
+
+
+def test_detect_security_signals_captures_rustsec_ids_with_no_other_keyword():
+    metrics = {"related_issues": {"dependency": [
+        {"number": 94, "title": "safetensors advisory RUSTSEC-2021-0125 filed", "state": "open",
+         "url": "u", "comments": 2, "body": "surfaced in the crates.io feed"},
+    ]}}
+    signals = detect_security_signals(metrics)
+    assert signals[0]["severity"] == "high"
+    assert signals[0]["rustsec_ids"] == ["RUSTSEC-2021-0125"]
+
+
+def test_format_security_signals_shows_rustsec_ids_and_count():
+    signals = [
+        {"number": 94, "title": "crates.io advisory", "url": "u", "state": "open", "comments": 2,
+         "severity": "high", "matched_term": "rustsec-", "matched_in": "title",
+         "cve_ids": [], "ghsa_ids": [], "cwe_ids": [], "mal_ids": [], "pysec_ids": [],
+         "rustsec_ids": ["RUSTSEC-2021-0125"], "stale": False, "age_days": 1},
+    ]
+    out = format_security_signals(signals)
+    assert "🦀 RUSTSEC-2021-0125" in out
+    assert "🦀 1 RUSTSEC(s)" in out
