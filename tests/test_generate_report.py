@@ -13,6 +13,7 @@ from generate_report import (
     extract_mal_ids,
     extract_pysec_ids,
     extract_rustsec_ids,
+    extract_go_ids,
     format_pr_status,
     format_related_issues,
     format_repo_stats,
@@ -770,3 +771,57 @@ def test_format_security_signals_shows_rustsec_ids_and_count():
     out = format_security_signals(signals)
     assert "🦀 RUSTSEC-2021-0125" in out
     assert "🦀 1 RUSTSEC(s)" in out
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("Advisory GO-2022-0322 filed", ["GO-2022-0322"]),
+    ("go-2021-0113 lowercase", ["GO-2021-0113"]),
+    ("GO-2022-0322 and GO-2021-0113", ["GO-2022-0322", "GO-2021-0113"]),
+    ("dup GO-2022-0322 then GO-2022-0322", ["GO-2022-0322"]),
+    ("no identifier here", []),
+    ("go-live plan for go-to-market", []),
+    ("logo-2024-0001 and argo-2024-0001 lookalikes", []),
+    ("bare GO-2022 without sequence ignored", []),
+    ("short GO-2022-12 ignored", []),
+    ("", []),
+])
+def test_extract_go_ids(text, expected):
+    assert extract_go_ids(text) == expected
+
+
+def test_extract_go_ids_across_multiple_texts_preserves_first_seen_order():
+    assert extract_go_ids("body GO-2026-0009", "title GO-2025-0001") == [
+        "GO-2026-0009",
+        "GO-2025-0001",
+    ]
+
+
+def test_detect_security_signals_captures_go_ids_with_no_other_keyword():
+    metrics = {"related_issues": {"dependency": [
+        {"number": 71, "title": "ollama advisory GO-2022-0322 filed", "state": "open",
+         "url": "u", "comments": 2, "body": "surfaced in the pkg.go.dev/vuln feed"},
+    ]}}
+    signals = detect_security_signals(metrics)
+    assert signals[0]["severity"] == "high"
+    assert signals[0]["go_ids"] == ["GO-2022-0322"]
+    assert signals[0]["matched_in"] == "title"
+
+
+def test_detect_security_signals_go_live_phrase_not_flagged():
+    metrics = {"related_issues": {"roadmap": [
+        {"number": 72, "title": "plan go-live for the go-to dashboard", "state": "open",
+         "url": "u", "comments": 0, "body": "no advisory here"},
+    ]}}
+    assert detect_security_signals(metrics) == []
+
+
+def test_format_security_signals_shows_go_ids_and_count():
+    signals = [
+        {"number": 71, "title": "go module advisory", "url": "u", "state": "open", "comments": 2,
+         "severity": "high", "matched_term": "GO-2022-0322", "matched_in": "title",
+         "cve_ids": [], "ghsa_ids": [], "cwe_ids": [], "mal_ids": [], "pysec_ids": [],
+         "rustsec_ids": [], "go_ids": ["GO-2022-0322"], "stale": False, "age_days": 1},
+    ]
+    out = format_security_signals(signals)
+    assert "🐹 GO-2022-0322" in out
+    assert "🐹 1 GO(s)" in out

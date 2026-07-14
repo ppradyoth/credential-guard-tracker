@@ -309,6 +309,30 @@ def extract_rustsec_ids(*texts: str) -> List[str]:
     return list(seen)
 
 
+# A `GO-YYYY-NNNN` identifier is the Go vulnerability database ID (pkg.go.dev/vuln)
+# for a flaw in a Go module — on-theme because the Go ecosystem hosts a growing
+# share of AI infrastructure and LLM-serving tooling (Ollama, LocalAI, and most
+# container/orchestration layers are written in Go). Go advisories are frequently
+# published with no CVE. The format is a fixed `GO-` prefix, a four-digit year, and
+# a four-digit zero-padded sequence (verified against pkg.go.dev/vuln, e.g.
+# GO-2022-0322, GO-2021-0113). Unlike the other advisory stems this is NOT added to
+# the keyword tiers: a bare `go-` stem would false-match "go-live" / "go-to", so the
+# precise full-ID anchor is used both to extract and — below — to detect.
+_GO_RE = re.compile(r"\bGO-\d{4}-\d{4}\b", re.IGNORECASE)
+
+
+def extract_go_ids(*texts: str) -> List[str]:
+    """Return uppercased, de-duplicated Go vuln-database IDs across the texts.
+
+    Order is preserved by first appearance. Non-GO text yields an empty list.
+    """
+    seen: Dict[str, None] = {}
+    for text in texts:
+        for match in _GO_RE.findall(text or ""):
+            seen.setdefault(match.upper(), None)
+    return list(seen)
+
+
 def _match_severity(text: str):
     """Return the highest-severity (severity, term) matched in text, or (None, None)."""
     text = (text or "").lower()
@@ -370,6 +394,10 @@ def detect_security_signals(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
             title_sev, title_term = _match_severity(issue.get("title"))
             body_sev, body_term = _match_severity(issue.get("body"))
 
+            title_text = issue.get("title", "")
+            body_text = issue.get("body", "")
+            go_ids = extract_go_ids(title_text, body_text)
+
             candidates = []
             if label_sev:
                 candidates.append((_SEVERITY_RANK[label_sev], 3, label_sev, label_term, "label"))
@@ -377,6 +405,12 @@ def detect_security_signals(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
                 candidates.append((_SEVERITY_RANK[title_sev], 2, title_sev, title_term, "title"))
             if body_sev:
                 candidates.append((_SEVERITY_RANK[body_sev], 1, body_sev, body_term, "body"))
+            if go_ids:
+                go_in_title = bool(_GO_RE.search(title_text))
+                candidates.append((
+                    _SEVERITY_RANK["high"], 2 if go_in_title else 1,
+                    "high", go_ids[0], "title" if go_in_title else "body",
+                ))
             if not candidates:
                 continue
 
@@ -418,6 +452,7 @@ def detect_security_signals(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
                 "mal_ids": mal_ids,
                 "pysec_ids": pysec_ids,
                 "rustsec_ids": rustsec_ids,
+                "go_ids": go_ids,
                 "age_days": age_days,
                 "stale": stale,
             }
@@ -474,6 +509,9 @@ def format_security_signals(signals: List[Dict[str, Any]]) -> str:
     tracked_rustsec = list(dict.fromkeys(r for s in signals for r in s.get("rustsec_ids", [])))
     if tracked_rustsec:
         header += f" · 🦀 {len(tracked_rustsec)} RUSTSEC(s)"
+    tracked_go = list(dict.fromkeys(g for s in signals for g in s.get("go_ids", [])))
+    if tracked_go:
+        header += f" · 🐹 {len(tracked_go)} GO(s)"
     lines.append(header)
     lines.append("")
 
@@ -500,6 +538,8 @@ def format_security_signals(signals: List[Dict[str, Any]]) -> str:
             detail += f" | 🐍 {', '.join(signal['pysec_ids'])}"
         if signal.get("rustsec_ids"):
             detail += f" | 🦀 {', '.join(signal['rustsec_ids'])}"
+        if signal.get("go_ids"):
+            detail += f" | 🐹 {', '.join(signal['go_ids'])}"
         if signal.get("stale"):
             detail += f" | ⚠️ stale {signal['age_days']}d"
         lines.append(detail)
