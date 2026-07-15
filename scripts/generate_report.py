@@ -469,6 +469,40 @@ def detect_security_signals(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
     )
 
 
+# A bare advisory ID in a report tells a maintainer *what* to look up but not
+# *where*. Each ID class has a single authoritative advisory page, so render the
+# ID as a markdown link straight to it. URLs verified against each source:
+# NVD (CVE), GitHub Advisory DB (GHSA), MITRE (CWE), OSV (MAL + PYSEC),
+# rustsec.org (RUSTSEC), and pkg.go.dev/vuln (GO). IDs arrive already uppercased
+# from the extractors.
+_ADVISORY_URL_BUILDERS: Dict[str, Any] = {
+    "cve": lambda i: f"https://nvd.nist.gov/vuln/detail/{i}",
+    "ghsa": lambda i: f"https://github.com/advisories/{i}",
+    "cwe": lambda i: f"https://cwe.mitre.org/data/definitions/{i.split('-', 1)[1]}.html",
+    "mal": lambda i: f"https://osv.dev/vulnerability/{i}",
+    "pysec": lambda i: f"https://osv.dev/vulnerability/{i}",
+    "rustsec": lambda i: f"https://rustsec.org/advisories/{i}.html",
+    "go": lambda i: f"https://pkg.go.dev/vuln/{i}",
+}
+
+
+def advisory_link(kind: str, advisory_id: str) -> str:
+    """Return a markdown link to the authoritative advisory page for *advisory_id*.
+
+    Falls back to the bare ID for an unknown *kind* so the report never loses the
+    identifier if a new class is wired in before its URL builder.
+    """
+    builder = _ADVISORY_URL_BUILDERS.get(kind)
+    if builder is None:
+        return advisory_id
+    return f"[{advisory_id}]({builder(advisory_id)})"
+
+
+def _link_ids(kind: str, ids: List[str]) -> str:
+    """Comma-join a list of advisory IDs as markdown links to their advisory pages."""
+    return ", ".join(advisory_link(kind, advisory_id) for advisory_id in ids)
+
+
 def format_security_signals(signals: List[Dict[str, Any]]) -> str:
     """Format the ranked security-signal section."""
     lines = ["## 🔐 Security Signals", ""]
@@ -527,19 +561,19 @@ def format_security_signals(signals: List[Dict[str, Any]]) -> str:
             f"| {signal['comments']} comments"
         )
         if signal.get("cve_ids"):
-            detail += f" | 🆔 {', '.join(signal['cve_ids'])}"
+            detail += f" | 🆔 {_link_ids('cve', signal['cve_ids'])}"
         if signal.get("ghsa_ids"):
-            detail += f" | 📛 {', '.join(signal['ghsa_ids'])}"
+            detail += f" | 📛 {_link_ids('ghsa', signal['ghsa_ids'])}"
         if signal.get("cwe_ids"):
-            detail += f" | 🧬 {', '.join(signal['cwe_ids'])}"
+            detail += f" | 🧬 {_link_ids('cwe', signal['cwe_ids'])}"
         if signal.get("mal_ids"):
-            detail += f" | 🦠 {', '.join(signal['mal_ids'])}"
+            detail += f" | 🦠 {_link_ids('mal', signal['mal_ids'])}"
         if signal.get("pysec_ids"):
-            detail += f" | 🐍 {', '.join(signal['pysec_ids'])}"
+            detail += f" | 🐍 {_link_ids('pysec', signal['pysec_ids'])}"
         if signal.get("rustsec_ids"):
-            detail += f" | 🦀 {', '.join(signal['rustsec_ids'])}"
+            detail += f" | 🦀 {_link_ids('rustsec', signal['rustsec_ids'])}"
         if signal.get("go_ids"):
-            detail += f" | 🐹 {', '.join(signal['go_ids'])}"
+            detail += f" | 🐹 {_link_ids('go', signal['go_ids'])}"
         if signal.get("stale"):
             detail += f" | ⚠️ stale {signal['age_days']}d"
         lines.append(detail)

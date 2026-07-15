@@ -6,6 +6,7 @@ from conftest import SAMPLE_METRICS
 from generate_report import (
     _format_delta,
     _weekly_highlights,
+    advisory_link,
     detect_security_signals,
     extract_cve_ids,
     extract_ghsa_ids,
@@ -548,7 +549,7 @@ def test_format_security_signals_shows_cve_ids_and_count():
          "cve_ids": ["CVE-2024-4321"], "stale": False, "age_days": 1},
     ]
     out = format_security_signals(signals)
-    assert "🆔 CVE-2024-4321" in out
+    assert "🆔 [CVE-2024-4321](https://nvd.nist.gov/vuln/detail/CVE-2024-4321)" in out
     assert "🆔 1 CVE(s)" in out
 
 
@@ -591,7 +592,7 @@ def test_format_security_signals_shows_ghsa_ids_and_count():
          "cve_ids": [], "ghsa_ids": ["GHSA-j828-28rj-hfhp"], "stale": False, "age_days": 1},
     ]
     out = format_security_signals(signals)
-    assert "📛 GHSA-j828-28rj-hfhp" in out
+    assert "📛 [GHSA-j828-28rj-hfhp](https://github.com/advisories/GHSA-j828-28rj-hfhp)" in out
     assert "📛 1 GHSA(s)" in out
 
 
@@ -632,7 +633,7 @@ def test_format_security_signals_shows_cwe_ids_and_count():
          "cve_ids": [], "ghsa_ids": [], "cwe_ids": ["CWE-798"], "stale": False, "age_days": 1},
     ]
     out = format_security_signals(signals)
-    assert "🧬 CWE-798" in out
+    assert "🧬 [CWE-798](https://cwe.mitre.org/data/definitions/798.html)" in out
     assert "🧬 1 CWE(s)" in out
 
 
@@ -684,7 +685,7 @@ def test_format_security_signals_shows_mal_ids_and_count():
          "stale": False, "age_days": 1},
     ]
     out = format_security_signals(signals)
-    assert "🦠 MAL-2026-2144" in out
+    assert "🦠 [MAL-2026-2144](https://osv.dev/vulnerability/MAL-2026-2144)" in out
     assert "🦠 1 MAL(s)" in out
 
 
@@ -726,7 +727,7 @@ def test_format_security_signals_shows_pysec_ids_and_count():
          "pysec_ids": ["PYSEC-2026-188"], "stale": False, "age_days": 1},
     ]
     out = format_security_signals(signals)
-    assert "🐍 PYSEC-2026-188" in out
+    assert "🐍 [PYSEC-2026-188](https://osv.dev/vulnerability/PYSEC-2026-188)" in out
     assert "🐍 1 PYSEC(s)" in out
 
 
@@ -769,7 +770,7 @@ def test_format_security_signals_shows_rustsec_ids_and_count():
          "rustsec_ids": ["RUSTSEC-2021-0125"], "stale": False, "age_days": 1},
     ]
     out = format_security_signals(signals)
-    assert "🦀 RUSTSEC-2021-0125" in out
+    assert "🦀 [RUSTSEC-2021-0125](https://rustsec.org/advisories/RUSTSEC-2021-0125.html)" in out
     assert "🦀 1 RUSTSEC(s)" in out
 
 
@@ -823,5 +824,38 @@ def test_format_security_signals_shows_go_ids_and_count():
          "rustsec_ids": [], "go_ids": ["GO-2022-0322"], "stale": False, "age_days": 1},
     ]
     out = format_security_signals(signals)
-    assert "🐹 GO-2022-0322" in out
+    assert "🐹 [GO-2022-0322](https://pkg.go.dev/vuln/GO-2022-0322)" in out
     assert "🐹 1 GO(s)" in out
+
+
+@pytest.mark.parametrize(
+    "kind,advisory_id,expected",
+    [
+        ("cve", "CVE-2024-4321", "[CVE-2024-4321](https://nvd.nist.gov/vuln/detail/CVE-2024-4321)"),
+        ("ghsa", "GHSA-j828-28rj-hfhp", "[GHSA-j828-28rj-hfhp](https://github.com/advisories/GHSA-j828-28rj-hfhp)"),
+        ("cwe", "CWE-798", "[CWE-798](https://cwe.mitre.org/data/definitions/798.html)"),
+        ("mal", "MAL-2026-2144", "[MAL-2026-2144](https://osv.dev/vulnerability/MAL-2026-2144)"),
+        ("pysec", "PYSEC-2026-188", "[PYSEC-2026-188](https://osv.dev/vulnerability/PYSEC-2026-188)"),
+        ("rustsec", "RUSTSEC-2021-0125", "[RUSTSEC-2021-0125](https://rustsec.org/advisories/RUSTSEC-2021-0125.html)"),
+        ("go", "GO-2022-0322", "[GO-2022-0322](https://pkg.go.dev/vuln/GO-2022-0322)"),
+    ],
+)
+def test_advisory_link_builds_authoritative_url(kind, advisory_id, expected):
+    assert advisory_link(kind, advisory_id) == expected
+
+
+def test_advisory_link_unknown_kind_falls_back_to_bare_id():
+    assert advisory_link("unknown", "XYZ-1") == "XYZ-1"
+
+
+def test_format_security_signals_renders_multiple_ids_as_links():
+    signals = [
+        {"number": 72, "title": "multi-id", "url": "u", "state": "open", "comments": 0,
+         "severity": "critical", "matched_term": "cve-", "matched_in": "title",
+         "cve_ids": ["CVE-2024-0001", "CVE-2024-0002"], "stale": False, "age_days": 1},
+    ]
+    out = format_security_signals(signals)
+    assert (
+        "🆔 [CVE-2024-0001](https://nvd.nist.gov/vuln/detail/CVE-2024-0001), "
+        "[CVE-2024-0002](https://nvd.nist.gov/vuln/detail/CVE-2024-0002)"
+    ) in out
