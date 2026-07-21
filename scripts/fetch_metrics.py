@@ -11,6 +11,7 @@ Collects data on:
 
 import json
 import os
+import time
 from datetime import datetime, timedelta
 from typing import Dict, Any, List
 
@@ -20,40 +21,91 @@ import requests
 class GitHubAPI:
     """GitHub REST API v3 wrapper."""
 
-    def __init__(self, token: str = None):
+    def __init__(self, token: str = None, max_retries: int = 3, backoff_base: float = 1.0):
         self.token = token or os.environ.get("GITHUB_TOKEN")
         self.session = requests.Session()
         if self.token:
             self.session.headers.update({"Authorization": f"token {self.token}"})
         self.base_url = "https://api.github.com"
+        self.max_retries = max_retries
+        self.backoff_base = backoff_base
+        self._sleep = time.sleep
+
+    @staticmethod
+    def _is_transient_status(resp) -> bool:
+        """Whether an HTTP error status is worth retrying.
+
+        Server errors (5xx) and rate limiting (429, or a 403 with the GitHub
+        ``X-RateLimit-Remaining: 0`` marker) are transient. Every other 4xx —
+        404 missing repo, 422 malformed query, 401 bad token — is deterministic:
+        retrying only burns the backoff budget and delays surfacing the error.
+        """
+        status = resp.status_code
+        if status >= 500 or status == 429:
+            return True
+        if status == 403 and resp.headers.get("X-RateLimit-Remaining") == "0":
+            return True
+        return False
+
+    def _retry_delay(self, attempt: int, resp=None) -> float:
+        """Backoff for this attempt, honoring a server ``Retry-After`` if given."""
+        if resp is not None:
+            retry_after = resp.headers.get("Retry-After")
+            if retry_after:
+                try:
+                    return float(retry_after)
+                except ValueError:
+                    pass
+        return self.backoff_base * (2 ** attempt)
+
+    def _get(self, url: str, params: Dict[str, Any] = None):
+        """GET with exponential-backoff retry on transient network/HTTP errors.
+
+        Connection errors and timeouts are always retried; HTTP errors are
+        retried only when :meth:`_is_transient_status` says so, so a permanent
+        4xx fails fast instead of sleeping through the full retry budget. A
+        rate-limit response's ``Retry-After`` header overrides the backoff.
+        """
+        last_exc = None
+        for attempt in range(self.max_retries + 1):
+            try:
+                resp = self.session.get(url, params=params)
+                resp.raise_for_status()
+                return resp
+            except requests.exceptions.HTTPError as exc:
+                last_exc = exc
+                resp = exc.response
+                if resp is not None and not self._is_transient_status(resp):
+                    raise
+                if attempt >= self.max_retries:
+                    break
+                self._sleep(self._retry_delay(attempt, resp))
+            except requests.exceptions.RequestException as exc:
+                last_exc = exc
+                if attempt >= self.max_retries:
+                    break
+                self._sleep(self.backoff_base * (2 ** attempt))
+        raise last_exc
 
     def get_pr(self, owner: str, repo: str, pr_number: int) -> Dict[str, Any]:
         """Get pull request details."""
         url = f"{self.base_url}/repos/{owner}/{repo}/pulls/{pr_number}"
-        resp = self.session.get(url)
-        resp.raise_for_status()
-        return resp.json()
+        return self._get(url).json()
 
     def get_pr_comments(self, owner: str, repo: str, pr_number: int) -> List[Dict]:
         """Get PR comments."""
         url = f"{self.base_url}/repos/{owner}/{repo}/issues/{pr_number}/comments"
-        resp = self.session.get(url, params={"per_page": 100})
-        resp.raise_for_status()
-        return resp.json()
+        return self._get(url, params={"per_page": 100}).json()
 
     def get_pr_reviews(self, owner: str, repo: str, pr_number: int) -> List[Dict]:
         """Get PR reviews."""
         url = f"{self.base_url}/repos/{owner}/{repo}/pulls/{pr_number}/reviews"
-        resp = self.session.get(url)
-        resp.raise_for_status()
-        return resp.json()
+        return self._get(url).json()
 
     def get_repo(self, owner: str, repo: str) -> Dict[str, Any]:
         """Get repository details."""
         url = f"{self.base_url}/repos/{owner}/{repo}"
-        resp = self.session.get(url)
-        resp.raise_for_status()
-        return resp.json()
+        return self._get(url).json()
 
     def search_issues(self, query: str, repo: str = None) -> List[Dict]:
         """Search for issues/PRs."""
@@ -61,9 +113,7 @@ class GitHubAPI:
         q = query
         if repo:
             q += f" repo:{repo}"
-        resp = self.session.get(url, params={"q": q, "per_page": 30})
-        resp.raise_for_status()
-        return resp.json().get("items", [])
+        return self._get(url, params={"q": q, "per_page": 30}).json().get("items", [])
 
 
 def collect_pr_metrics(gh: GitHubAPI, owner: str, repo: str, pr_number: int) -> Dict:
@@ -138,7 +188,10 @@ def collect_related_issues(gh: GitHubAPI, repo_full_name: str, keywords: List[st
                 "state": issue["state"],
                 "url": issue["html_url"],
                 "created_at": issue["created_at"],
+                "updated_at": issue.get("updated_at", ""),
                 "comments": issue["comments"],
+                "body": (issue.get("body") or "")[:500],
+                "labels": [l.get("name", "") for l in (issue.get("labels") or [])],
             }
             for issue in issues[:5]  # Top 5 per keyword
         ]
