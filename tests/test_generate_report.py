@@ -245,6 +245,29 @@ def test_detect_security_signals_matches_supply_chain_attack_terms():
     assert by_number[44]["severity"] == "high"
 
 
+def test_detect_security_signals_matches_deserialization_terms():
+    metrics = {"related_issues": {"x": [
+        {"number": 50, "title": "Insecure deserialization loading a pickled model checkpoint", "state": "open", "url": "u", "comments": 0},
+        {"number": 51, "title": "Unsafe-deserialization when parsing untrusted safetensors", "state": "open", "url": "u", "comments": 0},
+        {"number": 52, "title": "Deserialization of untrusted data in model loader", "state": "open", "url": "u", "comments": 0},
+    ]}}
+    by_number = {s["number"]: s for s in detect_security_signals(metrics)}
+    assert by_number[50]["severity"] == "high"
+    assert by_number[50]["matched_term"] == "insecure deserialization"
+    assert by_number[51]["severity"] == "high"
+    assert by_number[51]["matched_term"] == "unsafe deserialization"
+    assert by_number[52]["severity"] == "high"
+    assert by_number[52]["matched_term"] == "deserialization of untrusted"
+
+
+def test_detect_security_signals_benign_deserialization_not_high():
+    metrics = {"related_issues": {"x": [
+        {"number": 53, "title": "Add JSON deserialization support to the config loader", "state": "open", "url": "u", "comments": 0},
+    ]}}
+    signals = detect_security_signals(metrics)
+    assert signals == []
+
+
 def test_detect_security_signals_matches_hyphenated_multiword():
     metrics = {"related_issues": {"x": [
         {"number": 27, "title": "Supply-chain attack via malicious npm package", "state": "open", "url": "u", "comments": 0},

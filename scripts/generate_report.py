@@ -124,6 +124,9 @@ _SECURITY_SIGNAL_PATTERNS = [
             "package hijack",
             "model poisoning",
             "data poisoning",
+            "insecure deserialization",
+            "unsafe deserialization",
+            "deserialization of untrusted",
         ],
     ),
     (
