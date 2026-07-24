@@ -1,6 +1,13 @@
 # Credential Guard Tracker
 
+[![Tests](https://github.com/ppradyoth/credential-guard-tracker/actions/workflows/tests.yml/badge.svg)](https://github.com/ppradyoth/credential-guard-tracker/actions/workflows/tests.yml)
+[![Daily Report](https://github.com/ppradyoth/credential-guard-tracker/actions/workflows/daily-report.yml/badge.svg)](https://github.com/ppradyoth/credential-guard-tracker/actions/workflows/daily-report.yml)
+![Python](https://img.shields.io/badge/python-3.11-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+
 Automated daily ecosystem tracking for credential-guard plugin and security initiatives in Claude Code.
+
+**Keywords:** credential security · AI supply chain security · secrets detection · LLM tool hardening · Claude Code plugins
 
 Inspired by [Big Model Radar](https://github.com/gsscsd/big_model_radar), but focused on **credential protection** and **security hardening** for AI CLI tools.
 
@@ -10,8 +17,61 @@ Inspired by [Big Model Radar](https://github.com/gsscsd/big_model_radar), but fo
 - Monitors credential-guard PR #62099 status & metrics
 - Tracks adoption, community mentions, and related security PRs
 - Scans for credential-related issues across AI CLI ecosystems
+- **Detects and ranks security signals** in tracked issues by severity (critical / high / medium)
 - Publishes bilingual English daily digests as GitHub Issues
 - Generates weekly rollup reports with trend analysis
+
+## 🔐 Security Signal Detection
+
+Every daily report runs a keyword-tiered classifier over the tracked issues and
+surfaces the highest-risk ones first — so credential leaks and supply-chain risks
+don't get buried in routine noise. An issue's **labels, title, and body** are all
+scanned (highest severity across the three wins; a maintainer-applied **label** is
+preferred over the title, and the title over the body, on ties), so a risk buried
+in a long write-up is still caught. Curated labels count even when the keyword
+tiers wouldn't: a bare `security`, `cve`, or `exploit` label is treated as a
+high-severity signal, while free-text still ignores the ubiquitous word "security"
+to avoid noise. Coverage spans the **AI supply-chain attack vocabulary** the
+tracker exists to catch — `typosquat`, `dependency confusion`, `malicious package`,
+`backdoor`, and `model`/`data poisoning` — alongside the classic secret-leak and
+RCE terms. Keyword matching is **word-boundary anchored**,
+so short acronyms like `rce` flag a genuine "Possible RCE in parser" without
+false-positiving on unrelated words such as `source`, `resource`, or `enforce`.
+Multi-word signals are **separator-flexible**: the space inside a term like
+`supply chain` or `remote code execution` matches hyphens and line wraps too, so
+`supply-chain` and a body-wrapped `exposed\nsecret` are caught all the same.
+Ranking is **actionable-first**: signals sort by severity, then open-before-closed
+(an open issue is still live and worth triaging), then stale-before-fresh (a live
+risk nobody is working outranks a chatty, freshly-active peer), then by comment
+activity — so an open critical never sits below an already-closed one. The **Key Insights** line
+leads with that actionable count — how many critical/high signals are still
+**open** — rather than a raw total, so the headline is what needs attention today
+(e.g. `3 elevated signal(s) — 1 open critical/high need attention`).
+Open critical/high signals are also checked for **staleness**: if the issue has
+had no activity for over 14 days, the risk is still live but nobody is working it,
+so it's tagged `⚠️ stale Nd` and counted in both the section header and the Key
+Insights line — surfacing the quietly-rotting issues above the freshly-active
+noise. Any **CVE identifiers** referenced in the issue title or body are extracted
+(`CVE-YYYY-NNNN…`, case-insensitive, de-duplicated) and surfaced inline as
+`🆔 CVE-2024-1234`, with a distinct-CVE count added to the section header — a
+`cve-` keyword tells you a CVE is referenced, but the extracted ID tells you
+*which* one to look up. Each signal is tagged with the matched term, where it
+matched, any CVE IDs, and its severity:
+
+```text
+## 🔐 Security Signals
+
+**3 signal(s)** — 🟥 0 critical · 🟧 1 high · 🟨 2 medium · ⚠️ 1 stale · 🆔 1 CVE(s)
+
+  🟧 **HIGH** 🔵 [#222](https://github.com/anthropics/claude-code/issues/222) — Supply chain risk: unpinned action exfiltrates token
+     • matched `supply chain` in title | 12 comments | 🆔 CVE-2024-4321 | ⚠️ stale 21d
+  🟨 **MEDIUM** 🔵 [#100](https://github.com/anthropics/claude-code/issues/100) — Refactor token cache
+     • matched `credential` in body | 5 comments
+```
+
+Severity tiers are defined in `scripts/generate_report.py` (`_SECURITY_SIGNAL_PATTERNS`)
+and are fully unit-tested. This is the kind of triage signal that makes the tracker
+useful as **AI supply-chain security tooling**, not just a metrics dashboard.
 
 ## Tracked Metrics
 
@@ -23,6 +83,14 @@ Inspired by [Big Model Radar](https://github.com/gsscsd/big_model_radar), but fo
 | Community Engagement | PR comments, reactions, stars | Daily |
 | Plugin Adoption | GitHub stars, fork count | Daily |
 | Security Vulnerabilities | Related to credential leakage | Daily |
+
+### Fetch reliability
+
+GitHub API calls route through a retry helper that distinguishes transient from
+permanent failures. Connection errors, timeouts, HTTP 5xx, `429`, and
+rate-limited `403` responses are retried with exponential backoff (honoring a
+server `Retry-After` header when present); deterministic 4xx responses
+(`404`, `422`, `401`) fail fast instead of sleeping through the retry budget.
 
 ## Reports
 
@@ -188,6 +256,19 @@ Edit `manifest.json` to customize:
 }
 ```
 
+## Testing
+
+The metric-collection and report-generation logic is covered by a unit test suite
+(no network or GitHub token required — API responses are stubbed):
+
+```bash
+pip install pytest requests
+pytest -q
+```
+
+Tests run automatically on every push and pull request via the
+[Tests workflow](.github/workflows/tests.yml).
+
 ## License
 
 MIT — Use freely for your own tracking systems.
@@ -196,3 +277,7 @@ MIT — Use freely for your own tracking systems.
 
 - [Big Model Radar](https://github.com/gsscsd/big_model_radar) — Multilingual AI CLI ecosystem tracking
 - [credential-guard](https://github.com/anthropics/claude-code/pull/62099) — The plugin being tracked
+
+---
+
+Maintained with [Claude Code](https://claude.ai/code) — see the [autonomous agent experiment](https://github.com/ppradyoth/social-experiment-with-agents).
