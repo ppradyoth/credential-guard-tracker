@@ -123,7 +123,7 @@ function renderPRCard(pr) {
             </div>
             <div class="pr-stat">
                 <span class="pr-stat-label">👍 Reactions</span>
-                <span class="pr-stat-value">${pr.reactions['+1'] || 0}</span>
+                <span class="pr-stat-value">${pr.reactions?.['+1'] || 0}</span>
             </div>
         </div>
 
